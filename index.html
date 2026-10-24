@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дельта‑v: тактический бой</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --paper:#e6ebee; --panel:#f3f5f6; --ink:#17232d; --ink-2:#55656f; --line:#c2cbd2; --grid:#d3dade;
+  --plume:#e8710a; --me:#1d5fc4; --foe:#c4412b; --warn:#b07400; --flak:#6a4fb3;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#111a22; --panel:#17222b; --ink:#e2e9ee; --ink-2:#91a2af; --line:#2b3a46; --grid:#1b2833;
+    --plume:#ffa63a; --me:#5da4ff; --foe:#ff7a5c; --warn:#e6b53c; --flak:#b79dff; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111a22; --panel:#17222b; --ink:#e2e9ee; --ink-2:#91a2af; --line:#2b3a46; --grid:#1b2833;
+  --plume:#ffa63a; --me:#5da4ff; --foe:#ff7a5c; --warn:#e6b53c; --flak:#b79dff; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:500 15px/1.35 var(--font);font-variant-numeric:tabular-nums;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 332px;height:100%}
+.stage{position:relative;min-width:0;min-height:0;overflow:hidden;background:#0a1119;--panel:#141f29;--ink:#e2e9ee;--ink-2:#8fa1ae;--line:#2a3a46;--paper:#0a1119;--me:#5da4ff;--foe:#ff7a5c;--warn:#e6b53c;color:var(--ink)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.panel{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:18px;min-height:0}
+h1{margin:0;font-size:22px;font-weight:600;letter-spacing:.01em}
+h2{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--ink-2)}
+.sec{display:flex;flex-direction:column;gap:7px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.row span{color:var(--ink-2)}
+.row b{font-weight:600}
+.bar{height:6px;background:var(--line);border-radius:1px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--me)}
+.bar.warn i{background:var(--warn)}
+.bar.bad i{background:var(--foe)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btns.one{grid-template-columns:1fr}
+button{font:inherit;font-weight:500;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:4px;padding:7px 9px;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px}
+button:hover{border-color:var(--ink-2)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--me);outline-offset:2px}
+button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button.primary{background:var(--me);border-color:var(--me);color:#fff}
+button.danger{border-color:var(--foe);color:var(--foe)}
+kbd{font:500 12px var(--font);color:var(--ink-2);border:1px solid var(--line);border-radius:3px;padding:0 5px;background:transparent}
+button.primary kbd,button.on kbd{color:inherit;border-color:currentColor;opacity:.8}
+.times{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.times button{justify-content:center;padding:7px 0}
+input[type=range]{width:100%;accent-color:var(--me);margin:2px 0}
+label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:pointer}
+.small{font-size:13px;color:var(--ink-2)}
+.pips{letter-spacing:.15em;color:var(--flak);font-size:15px}
+.toast{position:absolute;left:12px;top:12px;max-width:min(420px,70%);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--me);padding:7px 11px;border-radius:3px;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+.clock{position:absolute;right:12px;top:12px;background:var(--panel);border:1px solid var(--line);padding:4px 9px;border-radius:3px;font-weight:600}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:34px;height:34px;justify-content:center;background:var(--panel);font-size:18px;padding:0}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:color-mix(in srgb,var(--paper) 90%,transparent);overflow:auto}
+.overlay[hidden]{display:none}
+.card{max-width:480px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-size:38px;line-height:1.05;margin:0;color:var(--ink);font-weight:600}
+.card p{margin:0}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0}
+.keys dt{white-space:nowrap}
+.keys dd{margin:0;color:var(--ink-2)}
+.card button.primary{justify-content:center;padding:11px 14px;font-size:17px}
+[hidden]{display:none!important}
+.dock,.mini,.sheetbar{display:none}
+.chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.chip{background:color-mix(in srgb,var(--paper) 78%,transparent);border:1px solid var(--line);border-radius:3px;padding:4px 7px 5px;display:flex;flex-direction:column;gap:2px}
+.chip span{font-size:11px;color:var(--ink-2);line-height:1}
+.chip b{font-size:15px;font-weight:600;line-height:1.1}
+.chip .bar{height:4px}
+.mtext{font-size:12px;color:var(--ink-2);text-shadow:0 0 4px var(--paper);margin-top:3px;max-width:calc(100% - 110px)}
+.thrrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.thrrow input{margin:0}
+.grid4,.times6{display:grid;gap:6px}
+.grid4{grid-template-columns:repeat(4,1fr)}
+.times6{grid-template-columns:repeat(6,1fr)}
+.dock button{justify-content:center;text-align:center;min-height:46px;padding:6px 4px;font-size:14px;line-height:1.15}
+.touchhelp{display:none;margin:0;padding-left:18px;color:var(--ink-2)}
+.touchhelp li{margin:3px 0}
+@media (pointer:coarse),(max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .dock{display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:var(--panel);border-top:1px solid var(--line);user-select:none;-webkit-user-select:none}
+  .mini{display:block;position:absolute;top:8px;left:8px;right:8px;pointer-events:none}
+  .clock{top:62px}
+  .toast{top:110px}
+  .panel{display:none}
+  body.sheet .panel{display:flex;position:fixed;inset:0;z-index:30;border:0;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+  .sheetbar{display:flex;justify-content:center}
+  .card h2{font-size:30px}
+  .zoom button{width:40px;height:40px}
+}
+@media (pointer:coarse){.keys{display:none}.touchhelp{display:block}}
+@media (pointer:coarse) and (orientation:landscape) and (max-height:560px){
+  .app{grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:minmax(0,1fr)}
+  .dock{overflow-y:auto;border-top:0;border-left:1px solid var(--line)}
+  .grid4{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="stage" id="stage">
+    <canvas id="c" aria-label="Тактическая карта боя"></canvas>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="mini" id="mini">
+      <div class="chips">
+        <div class="chip"><span>Δv, м/с</span><b id="mFuel">6000</b><div class="bar" id="mbFuel"><i></i></div></div>
+        <div class="chip"><span>Корпус</span><b id="mHp">100%</b><div class="bar" id="mbHp"><i></i></div></div>
+        <div class="chip"><span>Перегрузка, g</span><b id="mG">0.0</b><div class="bar" id="mbG"><i></i></div></div>
+        <div class="chip"><span>Экипаж</span><b id="mCrew">0%</b><div class="bar" id="mbCrew"><i></i></div></div>
+      </div>
+      <div class="mtext" id="mContact"></div>
+      <div class="mtext" id="mThreat"></div>
+    </div>
+    <div class="clock" id="clock">t 00:00</div>
+    <div class="zoom">
+      <button id="zin" aria-label="Приблизить">+</button>
+      <button id="zout" aria-label="Отдалить">−</button>
+      <button id="zship" aria-label="Вид на корабль" title="Вид на корабль (Z)">◎</button>
+      <button id="zhome" aria-label="Камера к кораблю" title="Камера к кораблю (C)">⌖</button>
+    </div>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <h2 id="ovTitle">Дельта‑v</h2>
+        <p id="ovText">Дуэль двух кораблей в пустоте. Топливо — это Δv, ускорение — это здоровье экипажа. Противника не видно, пока он не включит двигатель; вас тоже. Торпеда уничтожает корабль с одного попадания, облако шариков — за 2–3 залпа с близкой дистанции. Выхлоп двигателя плавит всё, что попало в факел за кормой. Оба корабля стартуют уже в движении: у каждого своя скорость и курс. Уничтожьте противника и сохраните экипаж.</p>
+        <dl class="keys" id="ovKeys">
+          <dt>Клик по карте</dt><dd>задать курс</dd>
+          <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>тяга больше или меньше</dd>
+          <dt><kbd>X</kbd> <kbd>B</kbd></dt><dd>заглушить двигатель; курс против скорости</dd>
+          <dt><kbd>E</kbd> <kbd>R</kbd></dt><dd>уклониться от ближайшей торпеды; развернуть двигатель на неё и плавить выхлопом</dd>
+          <dt><kbd>T</kbd></dt><dd>пустить торпеду</dd>
+          <dt><kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd></dt><dd>облако шариков: по курсору мыши; на торпеду с упреждением; по кораблю противника</dd>
+          <dt><kbd>1</kbd>–<kbd>4</kbd> <kbd>P</kbd></dt><dd>скорость времени; пауза</dd>
+          <dt><kbd>Z</kbd> <kbd>C</kbd></dt><dd>вид на корабль вблизи; вернуть камеру к кораблю. Перетаскивание мышью двигает карту, колесо меняет масштаб</dd>
+        </dl>
+        <ul class="touchhelp" id="ovTouch">
+          <li>Касание карты задаёт курс; перетаскивание двигает карту, ⌖ возвращает камеру к кораблю.</li>
+          <li>Два пальца меняют масштаб; кнопка ◎ показывает корабль вблизи.</li>
+          <li>Ползунок «Тяга» задаёт ускорение в g.</li>
+          <li>«Прицел облака»: нажмите кнопку, затем коснитесь карты в сторону цели.</li>
+          <li>«Уклон» уходит от торпеды, «Выхлоп» плавит её факелом. «Данные» открывают полную панель.</li>
+        </ul>
+        <button class="primary" id="ovBtn">Начать бой</button>
+      </div>
+    </div>
+  </main>
+
+  <section class="dock" id="dock" aria-label="Управление">
+    <div class="thrrow"><span>Тяга</span><input type="range" id="thr2" min="0" max="8" step="0.5" value="0" aria-label="Тяга, g"><b id="vThr2">0.0 g</b></div>
+    <div class="grid4">
+      <button id="dDodge" class="danger">Уклон</button>
+      <button id="dPlume" class="danger">Выхлоп</button>
+      <button id="dTorp" class="primary">Торпеда</button>
+      <button id="dRetro">Тормоз</button>
+    </div>
+    <div class="grid4">
+      <button id="dFlakAuto">Облако на торпеду</button>
+      <button id="dFlakShip">Облако на корабль</button>
+      <button id="dAim">Прицел облака</button>
+      <button id="dCut">Стоп тяга</button>
+    </div>
+    <div class="times6">
+      <button id="dPause" aria-label="Пауза">II</button>
+      <button data-speed="1">×1</button>
+      <button data-speed="3">×3</button>
+      <button data-speed="10">×10</button>
+      <button data-speed="30">×30</button>
+      <button id="dSheet">Данные</button>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <button class="sheetbar" id="sheetClose">Закрыть панель</button>
+    <h1>Дельта‑v</h1>
+
+    <section class="sec">
+      <h2>Корабль</h2>
+      <div class="row"><span>Топливо</span><b id="vFuel">6000 м/с</b></div>
+      <div class="bar" id="bFuel"><i></i></div>
+      <div class="row"><span>Корпус</span><b id="vHp">100%</b></div>
+      <div class="bar" id="bHp"><i></i></div>
+      <div class="row"><span>Перегрузка</span><b id="vG">0.0 g</b></div>
+      <div class="bar" id="bG"><i></i></div>
+      <div class="row"><span>Нагрузка экипажа</span><b id="vCrew">в норме</b></div>
+      <div class="bar" id="bCrew"><i></i></div>
+      <div class="row"><span>Задержка приказов</span><b id="vDelay">0.0 с</b></div>
+      <div class="row"><span>Скорость</span><b id="vSpeed">0.00 км/с</b></div>
+    </section>
+
+    <section class="sec">
+      <h2>Двигатель</h2>
+      <div class="row"><span>Тяга</span><b id="vThr">0 g</b></div>
+      <input type="range" id="thr" min="0" max="8" step="0.5" value="0" aria-label="Тяга, g">
+      <div class="btns">
+        <button id="bCut">Заглушить <kbd>X</kbd></button>
+        <button id="bRetro">Тормозить <kbd>B</kbd></button>
+      </div>
+      <div class="btns one">
+        <button id="bDodge" class="danger">Уклониться: 6 g, 5 с <kbd>E</kbd></button>
+      </div>
+      <div class="btns one">
+        <button id="bPlume" class="danger">Выхлоп на цель: 7 g, 6 с <kbd>R</kbd></button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>Оружие</h2>
+      <div class="row"><span>Торпеды</span><b id="vTorp">10</b></div>
+      <div class="row"><span>Облако шариков</span><b id="vFlak" class="pips">●●●</b></div>
+      <div class="row"><span>Раскрытие облака</span><b id="vSpread">5°</b></div>
+      <input type="range" id="spread" min="2" max="10" step="0.5" value="5" aria-label="Угол раскрытия облака">
+      <div class="btns one">
+        <button id="bTorp" class="primary">Пуск торпеды <kbd>T</kbd></button>
+      </div>
+      <div class="btns">
+        <button id="bFlak">По курсору <kbd>F</kbd></button>
+        <button id="bFlakAuto">На торпеду <kbd>G</kbd></button>
+      </div>
+      <div class="btns one">
+        <button id="bFlakShip">По кораблю противника <kbd>H</kbd></button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>Обстановка</h2>
+      <div class="small" id="vContact">Контакт: —</div>
+      <div class="small" id="vThreat">Торпед противника нет</div>
+    </section>
+
+    <section class="sec">
+      <h2>Время</h2>
+      <div class="times">
+        <button id="bPause" aria-label="Пауза">II</button>
+        <button data-speed="1">×1</button>
+        <button data-speed="3">×3</button>
+        <button data-speed="10">×10</button>
+        <button data-speed="30">×30</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="autoSlow" checked> Замедлять при угрозе</label>
+    </section>
+  </aside>
+</div>
+
+<script>
+"use strict";
+//#SIM-START
+const G0 = 9.81, DT = 0.05, D2R = Math.PI / 180;
+const SHIP = { maxG: 8, dv: 6000, torps: 10, turn: 60 * D2R };
+const TORP = { acc: 400, dv: 3900, blast: 150, fuse: 1500, frags: 80, fragDmg: 4, seeker: 40000, N: 6, vmin: 3500 };
+const FLAK = { n: 70, speed: 1800, life: 40, hitR: 60, kill: 2, charges: 3, recharge: 15, cd: 0.8, mass: 15, recoil: 4, shipR: 100, dmg: 5 };
+const PLUME = { perG: 1500, half: 6 * D2R, base: 15, rate: 25, melt: 100, shipRate: 3 };
+const DETECT = 25000;
+let S = null;
+let sayHook = () => {};
+const say = t => sayHook(t);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrap = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+function newShip(x, y, h, isPlayer) {
+  return { pos: [x, y], vel: [0, 0], heading: h, cmdHeading: h, cmdThrottle: 0,
+    issuedThrottle: 0, issuedHeading: h, accG: 0, fuel: SHIP.dv, stress: 0,
+    hp: 100, deathBy: '', aimAway: false, torps: SHIP.torps, flak: FLAK.charges, flakTimer: 0, flakCd: 0, orders: [], alive: true,
+    isPlayer, burnEnd: -1, ai: null };
+}
+
+function newGame() {
+  const y1 = (Math.random() - .5) * 20000, y2 = (Math.random() - .5) * 20000;
+  // стартовая скорость: 300–800 м/с, курс отклонён от линии на врага до ±50°
+  const rv = () => {
+    const sp = 300 + Math.random() * 500;
+    const a = (Math.random() * 2 - 1) * 50 * D2R;
+    return [Math.cos(a) * sp, Math.sin(a) * sp];
+  };
+  const v1 = rv(), v2 = rv();
+  S = { t: 0, over: false, result: '', reported: false,
+    me: newShip(-60000, y1, 0, true), foe: newShip(60000, y2, Math.PI, false),
+    torps: [], pellets: [], fx: [], tracks: {}, spread: 5 * D2R, lastHit: { me: -9, foe: -9 },
+    stats: { launched: 0, kills: 0 } };
+  S.me.vel = [v1[0], v1[1]];
+  S.foe.vel = [-v2[0], -v2[1]];
+  S.foe.ai = { nextSalvo: 12 + Math.random() * 10, salvoLeft: 0, salvoAt: 0, nextNudge: 6, nextFlak: 0 };
+  S.tracks.me = { pos: [...S.foe.pos], vel: [...S.foe.vel], seenT: 0, exact: true };
+  S.tracks.foe = { pos: [...S.me.pos], vel: [...S.me.vel], seenT: 0, exact: true };
+}
+
+function reactionDelay() { const s = S.me.stress; return s > 40 ? (s - 40) / 60 * 2.5 : 0; }
+
+function issue(type, val) {
+  const m = S.me;
+  if (type === 'throttle') m.issuedThrottle = val;
+  if (type === 'heading') m.issuedHeading = val;
+  m.orders.push({ at: S.t + reactionDelay(), type, val });
+}
+
+function applyOrder(s, key, o) {
+  switch (o.type) {
+    case 'heading': s.cmdHeading = o.val; s.aimAway = false; break;
+    case 'throttle': s.cmdThrottle = o.val; s.burnEnd = -1; s.aimAway = false; break;
+    case 'dodge': doDodge(s, key); break;
+    case 'flak': fireFlak(s, key, o.val); break;
+    case 'flakAuto': {
+      const a = autoAim(key);
+      if (a === null) { if (key === 'me') say('Нет торпед для упреждения'); }
+      else fireFlak(s, key, a);
+      break;
+    }
+    case 'plume': doPlume(s, key); break;
+    case 'flakShip': {
+      const tr = S.tracks[key];
+      fireFlak(s, key, solveIntercept(s.pos, s.vel, tr.pos, tr.vel, FLAK.speed));
+      break;
+    }
+    case 'torp': launchTorp(s, key); break;
+  }
+}
+
+function startBurn(s, ang, g, dur) {
+  s.cmdHeading = ang; s.cmdThrottle = g; s.burnEnd = S.t + dur;
+  if (s.isPlayer) { s.issuedThrottle = g; s.issuedHeading = ang; }
+}
+
+function nearestThreat(key) {
+  const s = key === 'me' ? S.me : S.foe;
+  let best = null, bt = 1e12;
+  for (const t of S.torps) {
+    if (t.owner === key || !t.alive) continue;
+    const rx = t.pos[0] - s.pos[0], ry = t.pos[1] - s.pos[1];
+    const R = Math.hypot(rx, ry) || 1;
+    const vx = t.vel[0] - s.vel[0], vy = t.vel[1] - s.vel[1];
+    const vc = -(rx * vx + ry * vy) / R;
+    const ttg = vc > 1 ? R / vc : 1e9 + R;
+    if (ttg < bt) { bt = ttg; best = t; }
+  }
+  return best ? { t: best, ttg: bt } : null;
+}
+
+function solveIntercept(ps, vs, pt, vt, sp) {
+  const rx = pt[0] - ps[0], ry = pt[1] - ps[1], wx = vt[0] - vs[0], wy = vt[1] - vs[1];
+  const a = wx * wx + wy * wy - sp * sp, b = 2 * (rx * wx + ry * wy), c = rx * rx + ry * ry;
+  let t = null;
+  if (Math.abs(a) < 1e-6) { if (Math.abs(b) > 1e-9) t = -c / b; }
+  else {
+    const disc = b * b - 4 * a * c;
+    if (disc >= 0) {
+      const q = Math.sqrt(disc);
+      const c1 = [(-b - q) / (2 * a), (-b + q) / (2 * a)].filter(x => x > 0);
+      if (c1.length) t = Math.min(...c1);
+    }
+  }
+  if (!t || t <= 0) return Math.atan2(ry, rx);
+  return Math.atan2(ry + wy * t, rx + wx * t);
+}
+
+function autoAim(key) {
+  const th = nearestThreat(key);
+  if (!th) return null;
+  const s = key === 'me' ? S.me : S.foe;
+  return solveIntercept(s.pos, s.vel, th.t.pos, th.t.vel, FLAK.speed);
+}
+
+function doDodge(s, key) {
+  const th = nearestThreat(key);
+  let lx, ly, rvx, rvy;
+  if (th) {
+    lx = th.t.pos[0] - s.pos[0]; ly = th.t.pos[1] - s.pos[1];
+    rvx = s.vel[0] - th.t.vel[0]; rvy = s.vel[1] - th.t.vel[1];
+  } else {
+    const tr = S.tracks[key];
+    lx = tr.pos[0] - s.pos[0]; ly = tr.pos[1] - s.pos[1];
+    rvx = s.vel[0] - tr.vel[0]; rvy = s.vel[1] - tr.vel[1];
+  }
+  const R = Math.hypot(lx, ly) || 1;
+  const px = -ly / R, py = lx / R;
+  const sg = (rvx * px + rvy * py) >= 0 ? 1 : -1;
+  startBurn(s, Math.atan2(py * sg, px * sg), 6, 5);
+  if (key === 'me') say('Уклонение: 6 g, 5 с');
+}
+
+function awayAngle(s, key) {
+  const th = nearestThreat(key);
+  const p = th ? th.t.pos : S.tracks[key].pos;
+  return Math.atan2(-(p[1] - s.pos[1]), -(p[0] - s.pos[0]));
+}
+
+function doPlume(s, key) {
+  startBurn(s, awayAngle(s, key), 7, 6);
+  s.aimAway = true;
+  if (key === 'me') say('Выхлоп на цель: 7 g, 6 с');
+}
+
+function fireFlak(s, key, ang) {
+  if (s.flak <= 0 || s.flakCd > 0) { if (key === 'me') say('Облако не готово'); return false; }
+  s.flak--; s.flakCd = FLAK.cd;
+  if (s.flakTimer <= 0) s.flakTimer = FLAK.recharge;
+  const jit = key === 'me' ? Math.max(0, (s.stress - 60) / 40) * 4 * D2R : 0;
+  const base = ang + (Math.random() * 2 - 1) * jit;
+  const spread = key === 'me' ? S.spread : 5 * D2R;
+  for (let i = 0; i < FLAK.n; i++) {
+    const a = base + (Math.random() * 2 - 1) * spread;
+    const sp = FLAK.speed * (0.85 + Math.random() * 0.3);
+    S.pellets.push({ owner: key, age: 0, dead: false,
+      pos: [s.pos[0], s.pos[1]],
+      vel: [s.vel[0] + Math.cos(a) * sp, s.vel[1] + Math.sin(a) * sp] });
+  }
+  s.vel[0] -= Math.cos(base) * FLAK.recoil; s.vel[1] -= Math.sin(base) * FLAK.recoil;
+  s.fuel = Math.max(0, s.fuel - FLAK.mass);
+  S.fx.push({ kind: 'puff', pos: [s.pos[0], s.pos[1]], t0: S.t, dur: 2, r: 1500, owner: key });
+  return true;
+}
+
+function launchTorp(s, key) {
+  if (s.torps <= 0) { if (key === 'me') say('Торпеды закончились'); return false; }
+  s.torps--; S.stats.launched++;
+  const tr = S.tracks[key];
+  const ang = Math.atan2(tr.pos[1] - s.pos[1], tr.pos[0] - s.pos[0]);
+  S.torps.push({ owner: key, pos: [s.pos[0], s.pos[1]],
+    vel: [s.vel[0] + Math.cos(ang) * 100, s.vel[1] + Math.sin(ang) * 100],
+    fuel: TORP.dv, age: 0, alive: true, hits: 0, heat: 0, acc: 0, trail: [], lastTrail: 0 });
+  say(key === 'me' ? 'Торпеда пущена' : 'Противник пустил торпеду');
+  return true;
+}
+
+function stepShip(s, dt) {
+  if (!s.alive) return;
+  if (s.burnEnd > 0 && S.t >= s.burnEnd) { s.cmdThrottle = 0; s.burnEnd = -1; s.aimAway = false; if (s.isPlayer) s.issuedThrottle = 0; }
+  if (s.aimAway) { s.cmdHeading = awayAngle(s, s.isPlayer ? 'me' : 'foe'); if (s.isPlayer) s.issuedHeading = s.cmdHeading; }
+  const m = SHIP.turn * dt;
+  s.heading = wrap(s.heading + clamp(wrap(s.cmdHeading - s.heading), -m, m));
+  let a = clamp(s.cmdThrottle, 0, SHIP.maxG) * G0;
+  if (s.fuel <= 0) a = 0; else if (a * dt > s.fuel) a = s.fuel / dt;
+  s.fuel = Math.max(0, s.fuel - a * dt);
+  s.accG = a / G0;
+  const vx0 = s.vel[0], vy0 = s.vel[1];
+  s.vel[0] += Math.cos(s.heading) * a * dt; s.vel[1] += Math.sin(s.heading) * a * dt;
+  s.pos[0] += (vx0 + s.vel[0]) / 2 * dt; s.pos[1] += (vy0 + s.vel[1]) / 2 * dt;
+  s.flakCd = Math.max(0, s.flakCd - dt);
+  if (s.flak < FLAK.charges && s.flakTimer > 0) {
+    s.flakTimer -= dt;
+    if (s.flakTimer <= 0) { s.flak++; s.flakTimer = s.flak < FLAK.charges ? FLAK.recharge : 0; }
+  }
+  if (s.isPlayer) {
+    const g = s.accG;
+    if (g >= 3) s.stress += Math.pow(g - 2.5, 1.6) * 0.5 * dt;
+    else if (g < 1.5) s.stress = Math.max(0, s.stress - 1.2 * dt);
+  }
+}
+
+function updateTracks(dt) {
+  for (const key of ['me', 'foe']) {
+    const tgt = key === 'me' ? S.foe : S.me, obs = key === 'me' ? S.me : S.foe;
+    const tr = S.tracks[key];
+    const vis = tgt.accG > 0.3 || dist2(obs.pos, tgt.pos) < DETECT;
+    if (vis) {
+      if (!tr.exact && key === 'me') say('Контакт: двигатель противника');
+      tr.pos = [tgt.pos[0], tgt.pos[1]]; tr.vel = [tgt.vel[0], tgt.vel[1]]; tr.seenT = S.t; tr.exact = true;
+    } else {
+      if (tr.exact && key === 'me') say('Контакт потерян: противник идёт по инерции');
+      tr.exact = false; tr.pos[0] += tr.vel[0] * dt; tr.pos[1] += tr.vel[1] * dt;
+    }
+  }
+}
+
+function closestDist(rx, ry, vx, vy, dt) {
+  const v2 = vx * vx + vy * vy;
+  const t = v2 > 1e-9 ? clamp(-(rx * vx + ry * vy) / v2, 0, dt) : 0;
+  return Math.hypot(rx + vx * t, ry + vy * t);
+}
+
+function stepTorp(t, dt) {
+  const key = t.owner, tgt = key === 'me' ? S.foe : S.me, tr = S.tracks[key];
+  let tp = tr.pos, tv = tr.vel;
+  if (dist2(t.pos, tgt.pos) < TORP.seeker) { tp = tgt.pos; tv = tgt.vel; }
+  const rx = tp[0] - t.pos[0], ry = tp[1] - t.pos[1];
+  const R = Math.max(Math.hypot(rx, ry), 1);
+  const lx = rx / R, ly = ry / R;
+  const vx = tv[0] - t.vel[0], vy = tv[1] - t.vel[1];
+  const Vc = -(rx * vx + ry * vy) / R;
+  const lamd = (rx * vy - ry * vx) / (R * R);
+  const lat = clamp(TORP.N * Math.max(Vc, 300) * lamd, -TORP.acc, TORP.acc);
+  const lon = Vc < TORP.vmin ? Math.sqrt(Math.max(0, TORP.acc * TORP.acc - lat * lat)) : 0;
+  let ax = lx * lon - ly * lat, ay = ly * lon + lx * lat;
+  let a = Math.hypot(ax, ay);
+  if (t.fuel <= 0) { ax = ay = a = 0; }
+  else if (a * dt > t.fuel) { const k = t.fuel / (a * dt); ax *= k; ay *= k; a *= k; }
+  t.fuel = Math.max(0, t.fuel - a * dt);
+  t.acc = a;
+  const vx0 = t.vel[0], vy0 = t.vel[1];
+  t.vel[0] += ax * dt; t.vel[1] += ay * dt;
+  t.pos[0] += (vx0 + t.vel[0]) / 2 * dt; t.pos[1] += (vy0 + t.vel[1]) / 2 * dt;
+  t.age += dt;
+  if (t.age - t.lastTrail >= 1) { t.lastTrail = t.age; t.trail.push([t.pos[0], t.pos[1]]); if (t.trail.length > 90) t.trail.shift(); }
+  if (tgt.alive && t.age > 2) {
+    const rvx = t.vel[0] - tgt.vel[0], rvy = t.vel[1] - tgt.vel[1];
+    const px = t.pos[0] - tgt.pos[0] - rvx * dt, py = t.pos[1] - tgt.pos[1] - rvy * dt;
+    const dmin = closestDist(px, py, rvx, rvy, dt);
+    if (dmin < TORP.blast) {
+      tgt.alive = false; tgt.hp = 0; tgt.deathBy = 'torp'; t.alive = false;
+      S.fx.push({ kind: 'boom', pos: [tgt.pos[0], tgt.pos[1]], t0: S.t, dur: 4, r: 6000, owner: key });
+      return;
+    }
+    // промах: торпеда прошла точку минимального сближения. Развернуться ей не хватит топлива, поэтому она взрывается
+    const closingStart = px * rvx + py * rvy < 0, closingEnd = (px + rvx * dt) * rvx + (py + rvy * dt) * rvy < 0;
+    if (closingStart && !closingEnd) {
+      t.alive = false;
+      const p = dmin < TORP.fuse ? Math.min(1, 2 * FLAK.shipR / (2 * Math.PI * Math.max(dmin, 50))) : 0;
+      let hits = 0;
+      for (let i = 0; i < TORP.frags; i++) if (Math.random() < p) hits++;
+      const dmg = hits * TORP.fragDmg;
+      S.fx.push({ kind: 'frag', pos: [t.pos[0], t.pos[1]], t0: S.t, dur: 2.5, r: Math.min(3000, Math.max(900, dmin * 1.4)), owner: key });
+      const d = Math.round(dmin), dtxt = d >= 1000 ? (d / 1000).toFixed(1) + ' км' : d + ' м';
+      if (dmg > 0) {
+        tgt.hp -= dmg;
+        say(key === 'me' ? 'Ваша торпеда взорвалась в ' + dtxt + ', осколки: −' + dmg + ' HP цели' : 'Торпеда взорвалась в ' + dtxt + ', осколки: −' + dmg + ' HP');
+        if (tgt.hp <= 0) {
+          tgt.hp = 0; tgt.alive = false; tgt.deathBy = 'frag';
+          S.fx.push({ kind: 'boom', pos: [tgt.pos[0], tgt.pos[1]], t0: S.t, dur: 4, r: 6000, owner: key });
+        }
+      } else say(key === 'me' ? 'Ваша торпеда промахнулась на ' + dtxt + ' и взорвалась' : 'Торпеда промахнулась на ' + dtxt + ' и взорвалась');
+      return;
+    }
+  }
+  if (t.fuel <= 0 && Vc < 0) { t.alive = false; S.fx.push({ kind: 'fizz', pos: [t.pos[0], t.pos[1]], t0: S.t, dur: 2, r: 1200, owner: key }); }
+  else if (t.age > 600) t.alive = false;
+}
+
+function stepPellets(dt) {
+  const dmgNow = { me: 0, foe: 0 };
+  for (const p of S.pellets) {
+    p.age += dt;
+    p.pos[0] += p.vel[0] * dt; p.pos[1] += p.vel[1] * dt;
+    if (p.age > FLAK.life) { p.dead = true; continue; }
+    const tg = p.owner === 'me' ? S.foe : S.me;
+    if (tg.alive) {
+      const svx = p.vel[0] - tg.vel[0], svy = p.vel[1] - tg.vel[1];
+      const spx = p.pos[0] - tg.pos[0] - svx * dt, spy = p.pos[1] - tg.pos[1] - svy * dt;
+      if (closestDist(spx, spy, svx, svy, dt) < FLAK.shipR) {
+        p.dead = true; tg.hp -= FLAK.dmg; dmgNow[tg.isPlayer ? 'me' : 'foe'] += FLAK.dmg;
+        if (tg.hp <= 0) {
+          tg.hp = 0; tg.alive = false; tg.deathBy = 'flak';
+          S.fx.push({ kind: 'boom', pos: [tg.pos[0], tg.pos[1]], t0: S.t, dur: 4, r: 6000, owner: p.owner });
+        }
+        continue;
+      }
+    }
+    for (const t of S.torps) {
+      if (!t.alive || t.owner === p.owner) continue;
+      const rvx = p.vel[0] - t.vel[0], rvy = p.vel[1] - t.vel[1];
+      const px = p.pos[0] - t.pos[0] - rvx * dt, py = p.pos[1] - t.pos[1] - rvy * dt;
+      if (closestDist(px, py, rvx, rvy, dt) < FLAK.hitR) {
+        p.dead = true; t.hits++;
+        if (t.hits >= FLAK.kill) {
+          t.alive = false;
+          S.fx.push({ kind: 'burst', pos: [t.pos[0], t.pos[1]], t0: S.t, dur: 2.5, r: 2500, owner: t.owner });
+          if (t.owner === 'foe') { S.stats.kills++; say('Торпеда противника сбита'); }
+          else say('Ваша торпеда сбита');
+        }
+        break;
+      }
+    }
+  }
+  S.pellets = S.pellets.filter(p => !p.dead);
+  if (dmgNow.me > 0 && S.t - S.lastHit.me > 2) { S.lastHit.me = S.t; say('Облако противника попало по вашему кораблю'); }
+  if (dmgNow.foe > 0 && S.t - S.lastHit.foe > 2) { S.lastHit.foe = S.t; say('Ваше облако попало по кораблю противника'); }
+}
+
+function plumeFactor(s, p) {
+  if (s.accG < 0.5) return 0;
+  const L = PLUME.perG * s.accG;
+  const dx = p[0] - s.pos[0], dy = p[1] - s.pos[1];
+  const ax = -Math.cos(s.heading), ay = -Math.sin(s.heading);
+  const d = dx * ax + dy * ay;
+  if (d <= 0 || d > L) return 0;
+  const lat = Math.abs(-dx * ay + dy * ax);
+  if (lat > PLUME.base + d * Math.tan(PLUME.half)) return 0;
+  return 1 - d / L;
+}
+
+function stepPlumes(dt) {
+  for (const key of ['me', 'foe']) {
+    const s = key === 'me' ? S.me : S.foe, tgt = key === 'me' ? S.foe : S.me;
+    if (!s.alive || s.accG < 0.5) continue;
+    for (const t of S.torps) {
+      if (!t.alive || t.owner === key) continue;
+      const f = plumeFactor(s, t.pos);
+      if (f <= 0) continue;
+      t.heat += PLUME.rate * s.accG * f * dt;
+      if (t.heat >= PLUME.melt) {
+        t.alive = false;
+        S.fx.push({ kind: 'melt', pos: [t.pos[0], t.pos[1]], t0: S.t, dur: 2.5, r: 2500, owner: t.owner });
+        if (key === 'me') { S.stats.kills++; say('Торпеда противника расплавлена выхлопом'); }
+        else say('Ваша торпеда расплавлена выхлопом противника');
+      }
+    }
+    if (tgt.alive) {
+      const f = plumeFactor(s, tgt.pos);
+      if (f > 0) {
+        const who = tgt.isPlayer ? 'me' : 'foe';
+        tgt.hp -= PLUME.shipRate * s.accG * f * dt;
+        if (S.t - S.lastHit[who] > 2) { S.lastHit[who] = S.t; say(who === 'me' ? 'Выхлоп противника плавит ваш корпус' : 'Ваш выхлоп плавит корабль противника'); }
+        if (tgt.hp <= 0) {
+          tgt.hp = 0; tgt.alive = false; tgt.deathBy = 'plume';
+          S.fx.push({ kind: 'boom', pos: [tgt.pos[0], tgt.pos[1]], t0: S.t, dur: 4, r: 6000, owner: key });
+        }
+      }
+    }
+  }
+}
+
+function aiStep() {
+  const f = S.foe, ai = f.ai, tr = S.tracks.foe;
+  if (!f.alive || !S.me.alive) return;
+  const th = nearestThreat('foe');
+  if (th) {
+    const R = dist2(th.t.pos, f.pos);
+    if (th.ttg < 28 && th.ttg > 5 && R < 34000 && f.flak > 0 && f.flakCd <= 0 && S.t >= ai.nextFlak) {
+      const ang = solveIntercept(f.pos, f.vel, th.t.pos, th.t.vel, FLAK.speed) + (Math.random() * 2 - 1) * 1.5 * D2R;
+      fireFlak(f, 'foe', ang); ai.nextFlak = S.t + 3.5;
+    }
+    if (th.ttg < 17 && f.burnEnd < 0 && f.fuel > 250) doDodge(f, 'foe');
+    else if (th.ttg < 8 && th.ttg > 2 && f.burnEnd < 0 && f.fuel > 250 && ai.plumeTorp !== th.t) {
+      ai.plumeTorp = th.t;
+      if (Math.random() < 0.6) doPlume(f, 'foe');
+    }
+  }
+  if ((!th || th.ttg > 40) && tr.exact && f.flak >= 2 && f.flakCd <= 0 && S.t >= ai.nextFlak && dist2(tr.pos, f.pos) < 30000) {
+    const ang = solveIntercept(f.pos, f.vel, tr.pos, tr.vel, FLAK.speed) + (Math.random() * 2 - 1) * 2 * D2R;
+    fireFlak(f, 'foe', ang); ai.nextFlak = S.t + 4;
+  }
+  if (ai.salvoLeft > 0 && S.t >= ai.salvoAt) {
+    if (launchTorp(f, 'foe')) { ai.salvoLeft--; ai.salvoAt = S.t + 3.5; } else ai.salvoLeft = 0;
+  } else if (ai.salvoLeft === 0 && S.t >= ai.nextSalvo && f.torps > 0 && dist2(tr.pos, f.pos) < 180000) {
+    ai.salvoLeft = Math.min(2, f.torps); ai.salvoAt = S.t; ai.nextSalvo = S.t + 40 + Math.random() * 25;
+  }
+  if (f.burnEnd < 0 && S.t >= ai.nextNudge && f.fuel > 700) {
+    const d = dist2(tr.pos, f.pos), base = Math.atan2(tr.pos[1] - f.pos[1], tr.pos[0] - f.pos[0]);
+    if (d > 130000) startBurn(f, base, 2, 8);
+    else if (d < 70000) startBurn(f, base + Math.PI, 2, 8);
+    else startBurn(f, base + (Math.random() < .5 ? 1 : -1) * Math.PI / 2, 1.5, 5);
+    ai.nextNudge = S.t + 30 + Math.random() * 20;
+  }
+}
+
+function step(dt) {
+  if (S.over) return;
+  S.t += dt;
+  aiStep();
+  const m = S.me;
+  while (m.orders.length && m.orders[0].at <= S.t) applyOrder(m, 'me', m.orders.shift());
+  stepShip(S.me, dt); stepShip(S.foe, dt);
+  updateTracks(dt);
+  for (const t of S.torps) if (t.alive) stepTorp(t, dt);
+  stepPellets(dt);
+  stepPlumes(dt);
+  S.torps = S.torps.filter(t => t.alive);
+  S.fx = S.fx.filter(f => S.t - f.t0 < f.dur);
+  const crewDead = S.me.stress >= 100;
+  if (crewDead && S.me.alive) { S.me.alive = false; S.me.deathBy = 'crew'; }
+  if (!S.me.alive || !S.foe.alive) {
+    S.over = true;
+    if (!S.me.alive && !S.foe.alive) S.result = 'Взаимное уничтожение';
+    else if (!S.foe.alive) S.result = 'Победа: корабль противника ' + (S.foe.deathBy === 'flak' ? 'разрушен облаком шариков' : S.foe.deathBy === 'plume' ? 'расплавлен выхлопом' : S.foe.deathBy === 'frag' ? 'добит осколками торпеды' : 'уничтожен торпедой');
+    else S.result = S.me.deathBy === 'crew' ? 'Поражение: экипаж не выдержал перегрузки' : S.me.deathBy === 'flak' ? 'Поражение: корпус разрушен облаком шариков' : S.me.deathBy === 'plume' ? 'Поражение: корабль расплавлен выхлопом противника' : S.me.deathBy === 'frag' ? 'Поражение: корпус разрушен осколками торпеды' : 'Поражение: корабль уничтожен торпедой';
+  }
+}
+
+function predictBurn(s, T, h) {
+  const p = [s.pos[0], s.pos[1]], v = [s.vel[0], s.vel[1]];
+  let hd = s.heading, fuel = s.fuel;
+  const pts = [[p[0], p[1]]];
+  for (let t = 0; t < T; t += h) {
+    hd = wrap(hd + clamp(wrap(s.cmdHeading - hd), -SHIP.turn * h, SHIP.turn * h));
+    let a = Math.min(s.cmdThrottle, SHIP.maxG) * G0;
+    if (fuel <= 0) a = 0; else if (a * h > fuel) a = fuel / h;
+    fuel -= a * h;
+    const vx0 = v[0], vy0 = v[1];
+    v[0] += Math.cos(hd) * a * h; v[1] += Math.sin(hd) * a * h;
+    p[0] += (vx0 + v[0]) / 2 * h; p[1] += (vy0 + v[1]) / 2 * h;
+    pts.push([p[0], p[1]]);
+  }
+  return pts;
+}
+//#SIM-END
+
+/* ---------- интерфейс ---------- */
+const $ = id => document.getElementById(id);
+const FONT = '"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif';
+const cv = $('c'), ctx = cv.getContext('2d');
+let cw = 300, ch = 300, dpr = 1, mpp = 450, mppT = 450, prevMpp = 450;
+let follow = true, camC = [0, 0];
+let C = {};
+let started = false, paused = false, chosen = 1, scale = 1;
+const ptr = { x: 0, y: 0, valid: false };
+const COARSE = matchMedia('(pointer:coarse)').matches;
+
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  C = { paper: '#0a1119', ink: '#e2e9ee', ink2: '#8fa1ae', line: '#2a3a46', grid: '#15212b',
+    me: '#5da4ff', foe: '#ff7a5c', warn: '#e6b53c', flak: '#b79dff', plume: '#ffa63a' };
+}
+readTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTheme);
+
+function resize() {
+  const r = cv.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1; cw = r.width; ch = r.height;
+  cv.width = Math.max(1, Math.round(cw * dpr)); cv.height = Math.max(1, Math.round(ch * dpr));
+}
+new ResizeObserver(resize).observe(cv); resize();
+mpp = mppT = prevMpp = Math.round(450 * Math.max(1, 820 / cw));
+
+const toast = $('toast'); let toastTimer = 0;
+sayHook = txt => {
+  toast.textContent = txt; toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+};
+
+function niceStep(x) {
+  const e = Math.pow(10, Math.floor(Math.log10(x))), m = x / e;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * e;
+}
+const ptrWorld = () => { const c = camCenter(); return [c[0] + (ptr.x - cw / 2) * mpp, c[1] - (ptr.y - ch / 2) * mpp]; };
+
+function ttgOf(t, s) {
+  const rx = t.pos[0] - s.pos[0], ry = t.pos[1] - s.pos[1], R = Math.hypot(rx, ry) || 1;
+  const vc = -(rx * (t.vel[0] - s.vel[0]) + ry * (t.vel[1] - s.vel[1])) / R;
+  return vc > 1 ? R / vc : null;
+}
+
+function starHash(a, b, c) {
+  let h = (a * 374761393 + b * 668265263 + c * 1442695041) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const STAR_LAYERS = [{ k: 0.004, f: 0.05, n: 16, s: 1, a: 0.45 }, { k: 0.012, f: 0.12, n: 9, s: 1.4, a: 0.65 }, { k: 0.03, f: 0.22, n: 4, s: 2, a: 0.9 }];
+const starOff = STAR_LAYERS.map(() => [0, 0]);
+let starPrev = null, starFollow = true;
+// k: сдвиг звёзд в px на метр при полете корабля; f: доля сдвига карты при перетаскивании (px на px)
+function updateStars(vx, vy) {
+  if (starPrev && starFollow === follow) {
+    const dx = vx - starPrev[0], dy = vy - starPrev[1];
+    STAR_LAYERS.forEach((L, i) => {
+      const k = follow ? L.k : L.f / mpp;
+      starOff[i][0] += dx * k; starOff[i][1] -= dy * k;
+    });
+  }
+  starPrev = [vx, vy]; starFollow = follow;
+}
+const STAR_COLORS = ['#ffffff', '#cfe0ff', '#ffe6c2'];
+function drawStars(W, H, cx, cy) {
+  const T = 400;
+  STAR_LAYERS.forEach((L, li) => {
+    const ox = starOff[li][0], oy = starOff[li][1];
+    const i0 = Math.floor(ox / T), i1 = Math.floor((ox + W) / T), j0 = Math.floor(oy / T), j1 = Math.floor((oy + H) / T);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let n = 0; n < L.n; n++) {
+      const x = i * T + starHash(i, j, n * 3 + li * 101) * T - ox;
+      const y = j * T + starHash(i, j, n * 3 + 1 + li * 101) * T - oy;
+      const b = starHash(i, j, n * 3 + 2 + li * 101);
+      ctx.globalAlpha = L.a * (0.4 + 0.6 * b);
+      ctx.fillStyle = STAR_COLORS[Math.floor(b * 7) % 3];
+      const sz = L.s * (b > 0.9 ? 1.6 : 1);
+      ctx.fillRect(Math.round(x), Math.round(y), sz, sz);
+    }
+  });
+  ctx.globalAlpha = 1;
+}
+
+const camCenter = () => follow ? S.me.pos : camC;
+const fmtDist = m => m >= 1000 ? (Math.round(m / 10) / 100) + ' км' : Math.round(m) + ' м';
+
+function drawModel(s, col, Lp, x, y) {
+  const mirror = top => top.concat(top.slice().reverse().map(p => [p[0], -p[1]]));
+  const flip = pts => pts.map(p => [p[0], -p[1]]);
+  const px = 1 / Lp;
+  const poly = (pts, fill, a) => {
+    ctx.globalAlpha = a == null ? 1 : a; ctx.fillStyle = fill; ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+  };
+  const outline = pts => {
+    ctx.strokeStyle = C.ink2; ctx.lineWidth = px * 1.2; ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.closePath(); ctx.stroke();
+  };
+  const dot = (cx, cy, r, a) => { ctx.globalAlpha = a; ctx.fillStyle = C.paper; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); ctx.globalAlpha = 1; };
+  const line = (x0, y0, x1, y1, a) => { ctx.globalAlpha = a; ctx.strokeStyle = C.paper; ctx.lineWidth = px; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.globalAlpha = 1; };
+  const hot = Math.min(1, s.accG / 2);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(Lp, Lp);
+  if (s.isPlayer) {
+    poly([[-0.44, 0.07], [-0.53, 0.105], [-0.53, -0.105], [-0.44, -0.07]], C.ink2);
+    if (hot > 0.02) poly([[-0.53, 0.09], [-0.56 - 0.12 * hot, 0], [-0.53, -0.09]], C.plume, 0.9);
+    const top = [[0.43, 0.035], [0.30, 0.075], [0.14, 0.095], [0.07, 0.10], [0.0, 0.19], [-0.14, 0.215], [-0.2, 0.215], [-0.21, 0.13], [-0.30, 0.115], [-0.42, 0.105], [-0.46, 0.075]];
+    const hull = [[0.5, 0]].concat(mirror(top));
+    poly(hull, C.ink, 0.92); outline(hull);
+    const wing = [[0.02, 0.17], [-0.14, 0.2], [-0.19, 0.2], [-0.2, 0.135], [0.04, 0.12]];
+    poly(wing, col, 0.85); poly(flip(wing), col, 0.85);
+    poly([[0.28, 0.025], [-0.3, 0.03], [-0.3, -0.03], [0.28, -0.025]], C.paper, 0.18);
+    poly([[0.33, 0.02], [0.37, 0.012], [0.37, -0.012], [0.33, -0.02]], C.paper, 0.9);
+    poly([[0.24, 0.05], [0.16, 0.05], [0.16, 0.062], [0.24, 0.062]], C.paper, 0.5);
+    poly([[0.24, -0.05], [0.16, -0.05], [0.16, -0.062], [0.24, -0.062]], C.paper, 0.5);
+    line(0.14, -0.09, 0.14, 0.09, 0.3); line(-0.1, -0.11, -0.1, 0.11, 0.3); line(-0.3, -0.11, -0.3, 0.11, 0.3);
+    dot(-0.05, 0, 0.018, 0.6); dot(0.22, 0, 0.012, 0.6); dot(-0.18, 0.21, 0.012, 0.8); dot(-0.18, -0.21, 0.012, 0.8);
+  } else {
+    for (const sg of [1, -1]) {
+      poly([[-0.47, sg * 0.085], [-0.54, sg * 0.09], [-0.54, sg * 0.02], [-0.47, sg * 0.02]], C.ink2);
+      if (hot > 0.02) poly([[-0.54, sg * 0.085], [-0.57 - 0.1 * hot, sg * 0.055], [-0.54, sg * 0.025]], C.plume, 0.9);
+    }
+    const top = [[0.30, 0.04], [0.12, 0.07], [0.03, 0.15], [-0.15, 0.20], [-0.27, 0.16], [-0.31, 0.09], [-0.43, 0.085], [-0.48, 0.06]];
+    const hull = [[0.5, 0]].concat(mirror(top));
+    poly(hull, C.ink, 0.92); outline(hull);
+    poly([[0.40, 0], [0.1, 0.025], [-0.3, 0.025], [-0.3, -0.025], [0.1, -0.025]], col, 0.85);
+    const tip = [[-0.05, 0.17], [-0.15, 0.20], [-0.27, 0.16], [-0.2, 0.12]];
+    poly(tip, col, 0.85); poly(flip(tip), col, 0.85);
+    poly([[0.28, 0.015], [0.34, 0.008], [0.34, -0.008], [0.28, -0.015]], C.paper, 0.9);
+    line(0.0, -0.1, 0.0, 0.1, 0.3); line(-0.2, -0.12, -0.2, 0.12, 0.3);
+    dot(-0.35, 0, 0.016, 0.6); dot(0.1, 0.1, 0.012, 0.7); dot(0.1, -0.1, 0.012, 0.7);
+  }
+  ctx.restore();
+}
+
+/* ---------- отрисовка ---------- */
+function draw() {
+  const W = cw, H = ch, me = S.me, foe = S.foe;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+  const cx = me.pos[0], cy = me.pos[1];
+  const cc = camCenter(), vx = cc[0], vy = cc[1];
+  updateStars(vx, vy);
+  drawStars(W, H);
+  const X = x => (x - vx) / mpp + W / 2, Y = y => H / 2 - (y - vy) / mpp;
+  ctx.font = '500 12px ' + FONT; ctx.textBaseline = 'middle';
+
+  // сетка
+  const step = niceStep(mpp * 110);
+  ctx.lineWidth = 1; ctx.strokeStyle = C.grid; ctx.beginPath();
+  const i0 = Math.floor((vx - W / 2 * mpp) / step), i1 = Math.ceil((vx + W / 2 * mpp) / step);
+  for (let i = i0; i <= i1; i++) { const sx = Math.round(X(i * step)) + .5; ctx.moveTo(sx, 0); ctx.lineTo(sx, H); }
+  const j0 = Math.floor((vy - H / 2 * mpp) / step), j1 = Math.ceil((vy + H / 2 * mpp) / step);
+  for (let j = j0; j <= j1; j++) { const sy = Math.round(Y(j * step)) + .5; ctx.moveTo(0, sy); ctx.lineTo(W, sy); }
+  ctx.stroke();
+
+  // дальномерные круги
+  const rs = niceStep(mpp * 200), sx0 = X(cx), sy0 = Y(cy);
+  const mx = Math.hypot(W, H) / 2 + Math.hypot(sx0 - W / 2, sy0 - H / 2);
+  ctx.strokeStyle = C.line; ctx.setLineDash([2, 5]); ctx.fillStyle = C.ink2; ctx.textAlign = 'left';
+  for (let k = 1; k * rs / mpp < mx && k < 40; k++) {
+    const r = k * rs / mpp;
+    ctx.beginPath(); ctx.arc(sx0, sy0, r, 0, 7); ctx.stroke();
+    if (r > 40) ctx.fillText(fmtDist(k * rs), sx0 + r * 0.7071 + 4, sy0 - r * 0.7071);
+  }
+  ctx.setLineDash([]);
+
+  // масштаб
+  const sl = step / mpp;
+  ctx.strokeStyle = C.ink2; ctx.lineWidth = 1.5; ctx.beginPath();
+  ctx.moveTo(16, H - 20); ctx.lineTo(16 + sl, H - 20); ctx.moveTo(16, H - 25); ctx.lineTo(16, H - 15); ctx.moveTo(16 + sl, H - 25); ctx.lineTo(16 + sl, H - 15); ctx.stroke();
+  ctx.fillStyle = C.ink2; ctx.fillText(fmtDist(step), 16 + sl + 8, H - 20);
+
+  // предсказания курса
+  if (me.alive) {
+    ctx.lineWidth = 1.2; ctx.strokeStyle = C.me; ctx.fillStyle = C.me;
+    ctx.globalAlpha = 0.55; ctx.setLineDash([4, 5]);
+    ctx.beginPath(); ctx.moveTo(X(cx), Y(cy)); ctx.lineTo(X(cx + me.vel[0] * 120), Y(cy + me.vel[1] * 120)); ctx.stroke();
+    ctx.setLineDash([]);
+    for (let t = 10; t <= 120; t += 10) {
+      const x = X(cx + me.vel[0] * t), y = Y(cy + me.vel[1] * t);
+      ctx.beginPath(); ctx.arc(x, y, t % 30 === 0 ? 2.5 : 1.5, 0, 7); ctx.fill();
+      if (t % 30 === 0) { ctx.textAlign = 'left'; ctx.fillText(t + ' с', x + 6, y - 8); }
+    }
+    ctx.globalAlpha = 1;
+    if (me.cmdThrottle > 0.05) {
+      const T = me.burnEnd > 0 ? Math.max(0, me.burnEnd - S.t) : 20;
+      if (T > 0) {
+        const pts = predictBurn(me, T, 0.5);
+        ctx.lineWidth = 2; ctx.strokeStyle = C.me; ctx.beginPath();
+        pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))); ctx.stroke();
+      }
+    }
+    // заданный курс
+    const oh = me.issuedHeading;
+    ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.setLineDash([1, 4]);
+    ctx.beginPath(); ctx.moveTo(X(cx), Y(cy)); ctx.lineTo(X(cx) + Math.cos(oh) * 90, Y(cy) - Math.sin(oh) * 90); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // конус облака
+  if (started && !S.over && ptr.valid && me.alive && me.flak > 0 && (!COARSE || aimMode)) {
+    const w = ptrWorld(), a = Math.atan2(w[1] - cy, w[0] - cx), R = Math.min(30000 / mpp, 5000);
+    ctx.fillStyle = C.flak; ctx.strokeStyle = C.flak; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.09; ctx.beginPath(); ctx.moveTo(X(cx), Y(cy));
+    ctx.arc(X(cx), Y(cy), R, -(a + S.spread), -(a - S.spread)); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // шарики
+  ctx.fillStyle = C.flak;
+  for (const p of S.pellets) {
+    ctx.globalAlpha = 1 - 0.7 * p.age / FLAK.life;
+    ctx.fillRect(X(p.pos[0]) - 1, Y(p.pos[1]) - 1, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // торпеды
+  for (const t of S.torps) {
+    const col = t.owner === 'me' ? C.me : C.foe;
+    ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.beginPath();
+    t.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+    ctx.lineTo(X(t.pos[0]), Y(t.pos[1])); ctx.stroke(); ctx.globalAlpha = 1;
+    const ang = Math.atan2(t.vel[1], t.vel[0]);
+    const ts = Math.max(1, 8 / mpp / 10);
+    ctx.save(); ctx.translate(X(t.pos[0]), Y(t.pos[1])); ctx.rotate(-ang); ctx.scale(ts, ts);
+    ctx.fillStyle = t.heat > 5 ? C.plume : col; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, 3.5); ctx.lineTo(-4, -3.5); ctx.closePath(); ctx.fill();
+    if (t.acc > 1) { ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(-10, 0); ctx.stroke(); }
+    ctx.restore();
+    if (t.owner === 'foe') {
+      const g = ttgOf(t, me);
+      ctx.fillStyle = col; ctx.textAlign = 'left';
+      ctx.fillText((g ? Math.round(g) + ' с' : '—') + ', Δv ' + Math.round(t.fuel) + (t.heat > 5 ? ', нагрев ' + Math.min(99, Math.round(t.heat)) + '%' : ''), X(t.pos[0]) + 9, Y(t.pos[1]) - 9);
+    }
+  }
+
+  // корабли
+  const ship = (s, col, ghost) => {
+    const len = s.isPlayer ? 46 : 55;
+    if (!ghost && len / mpp >= 22) { drawModel(s, col, len / mpp, X(s.pos[0]), Y(s.pos[1])); return; }
+    ctx.save(); ctx.translate(X(s.pos[0]), Y(s.pos[1])); ctx.rotate(-s.heading);
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, 7); ctx.lineTo(-4, 0); ctx.lineTo(-8, -7); ctx.closePath();
+    if (ghost) { ctx.strokeStyle = col; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+    else { ctx.fillStyle = col; ctx.fill(); }
+    if (!ghost && s.accG > 0.05) {
+      ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-10 - s.accG * 4, 0); ctx.stroke();
+    }
+    ctx.restore();
+  };
+  const plume = s => {
+    if (!s.alive || s.accG < 0.5) return;
+    const L = PLUME.perG * s.accG, cx0 = X(s.pos[0]), cy0 = Y(s.pos[1]);
+    const ax = -Math.cos(s.heading), ay = -Math.sin(s.heading);
+    const x0 = cx0 + ax * 23 / mpp, y0 = cy0 - ay * 23 / mpp;
+    const x1 = cx0 + ax * L / mpp, y1 = cy0 - ay * L / mpp;
+    const hw = Math.max(1.5, (PLUME.base + (L - 23) * Math.tan(PLUME.half)) / mpp);
+    ctx.fillStyle = C.plume;
+    for (const k of [1, 0.6, 0.3]) {
+      ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + (x1 - x0) * k + ay * hw * k, y0 + (y1 - y0) * k + ax * hw * k);
+      ctx.lineTo(x0 + (x1 - x0) * k - ay * hw * k, y0 + (y1 - y0) * k - ax * hw * k);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+  plume(me); plume(foe);
+  if (me.alive) ship(me, C.me, false);
+  const tr = S.tracks.me;
+  if (foe.alive) {
+    if (tr.exact) {
+      ship(foe, C.foe, false);
+      ctx.fillStyle = C.foe; ctx.textAlign = 'left';
+      ctx.fillText('корпус ' + Math.round(foe.hp) + '%', X(foe.pos[0]) + 14, Y(foe.pos[1]) + 16);
+    }
+    else {
+      const age = S.t - tr.seenT, ur = Math.min(80000, 0.5 * 15 * age * age);
+      ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.arc(X(tr.pos[0]), Y(tr.pos[1]), Math.max(8, ur / mpp), 0, 7); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.save(); ctx.translate(X(tr.pos[0]), Y(tr.pos[1]));
+      ctx.strokeStyle = C.foe; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(8, 0); ctx.lineTo(0, 8); ctx.lineTo(-8, 0); ctx.closePath(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = C.foe; ctx.textAlign = 'left';
+      ctx.fillText('последняя позиция, ' + Math.round(age) + ' с назад', X(tr.pos[0]) + 12, Y(tr.pos[1]) + 14);
+    }
+  }
+
+  // взрывы
+  for (const f of S.fx) {
+    const u = (S.t - f.t0) / f.dur; if (u < 0 || u > 1) continue;
+    const col = f.kind === 'puff' ? C.flak : f.kind === 'fizz' ? C.ink2 : f.kind === 'melt' ? C.plume : (f.owner === 'me' ? C.me : C.foe);
+    ctx.strokeStyle = col; ctx.globalAlpha = 1 - u; ctx.lineWidth = f.kind === 'boom' ? 3 : 1.5;
+    ctx.beginPath(); ctx.arc(X(f.pos[0]), Y(f.pos[1]), Math.max(6, f.r * (0.2 + 0.8 * u) / mpp), 0, 7); ctx.stroke();
+    if (f.kind === 'frag') {
+      const rr = Math.max(6, f.r * (0.2 + 0.8 * u) / mpp), fx0 = X(f.pos[0]), fy0 = Y(f.pos[1]);
+      ctx.beginPath();
+      for (let k = 0; k < 20; k++) { const a = k * Math.PI / 10; ctx.moveTo(fx0 + Math.cos(a) * rr * 0.55, fy0 + Math.sin(a) * rr * 0.55); ctx.lineTo(fx0 + Math.cos(a) * rr, fy0 + Math.sin(a) * rr); }
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // маркеры за краем экрана
+  const edge = (pos, col, label, big) => {
+    const dx = X(pos[0]) - W / 2, dy = Y(pos[1]) - H / 2, m = 26;
+    if (Math.abs(dx) < W / 2 - m && Math.abs(dy) < H / 2 - m) return;
+    const k = Math.min((W / 2 - m) / (Math.abs(dx) || 1e-9), (H / 2 - m) / (Math.abs(dy) || 1e-9));
+    const ex = W / 2 + dx * k, ey = H / 2 + dy * k, a = Math.atan2(dy, dx);
+    ctx.save(); ctx.translate(ex, ey); ctx.rotate(a); ctx.fillStyle = col;
+    const z = big ? 1.4 : 1; ctx.beginPath(); ctx.moveTo(9 * z, 0); ctx.lineTo(-5 * z, 6 * z); ctx.lineTo(-5 * z, -6 * z); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.fillStyle = col; ctx.textAlign = ex > W / 2 ? 'right' : 'left';
+    ctx.fillText(label, ex + (ex > W / 2 ? -14 : 14), ey + (ey > H / 2 ? -12 : 12));
+  };
+  if (me.alive) edge(me.pos, C.me, 'вы', true);
+  if (foe.alive) {
+    const fp = tr.exact ? foe.pos : tr.pos;
+    edge(fp, C.foe, (tr.exact ? 'цель, ' : 'цель (устар.), ') + fmtDist(dist2(me.pos, fp)), true);
+  }
+  for (const t of S.torps) {
+    if (t.owner === 'foe') { const g = ttgOf(t, me); edge(t.pos, C.foe, 'торпеда' + (g ? ', ' + Math.round(g) + ' с' : '')); }
+    else edge(t.pos, C.me, 'своя торпеда');
+  }
+
+  if (!follow) {
+    ctx.textAlign = 'center'; ctx.fillStyle = C.warn; ctx.font = '500 13px ' + FONT;
+    ctx.fillText('Камера свободна: нажмите ⌖ или C, чтобы вернуться к кораблю', W / 2, H - 68);
+  }
+  // скорость
+  const sp = Math.hypot(me.vel[0], me.vel[1]) / 1000;
+  ctx.textAlign = 'center'; ctx.fillStyle = C.ink; ctx.font = '600 24px ' + FONT;
+  ctx.fillText(sp.toFixed(2) + ' км/с', W / 2, H - 40);
+  if (foe.alive) {
+    const rx = tr.pos[0] - me.pos[0], ry = tr.pos[1] - me.pos[1], rr = Math.hypot(rx, ry) || 1;
+    const cl = -(rx * (tr.vel[0] - me.vel[0]) + ry * (tr.vel[1] - me.vel[1])) / rr / 1000;
+    ctx.font = '500 13px ' + FONT; ctx.fillStyle = C.ink2;
+    ctx.fillText((cl >= 0 ? 'сближение с целью ' : 'расхождение с целью ') + Math.abs(cl).toFixed(2) + ' км/с', W / 2, H - 18);
+  }
+}
+
+/* ---------- панель ---------- */
+const el = {};
+['mFuel','mbFuel','mHp','mbHp','mG','mbG','mCrew','mbCrew','mContact','mThreat','thr2','vThr2','dPause','vFuel','bFuel','vHp','bHp','vG','bG','vCrew','bCrew','vDelay','vSpeed','vThr','thr','vTorp','vFlak','vSpread','spread','vContact','vThreat','clock','bPause','autoSlow'].forEach(i => el[i] = $(i));
+const setBar = (id, frac, cls) => { const b = el[id]; b.firstElementChild.style.width = (clamp(frac, 0, 1) * 100).toFixed(1) + '%'; b.className = 'bar' + (cls ? ' ' + cls : ''); };
+let draggingThr = false, draggingThr2 = false;
+el.thr.addEventListener('pointerdown', () => draggingThr = true);
+el.thr2.addEventListener('pointerdown', () => draggingThr2 = true);
+addEventListener('pointerup', () => { draggingThr = false; draggingThr2 = false; });
+addEventListener('pointercancel', () => { draggingThr = false; draggingThr2 = false; });
+
+function updateHud() {
+  const me = S.me, tr = S.tracks.me, foe = S.foe;
+  el.vFuel.textContent = Math.round(me.fuel) + ' м/с';
+  setBar('bFuel', me.fuel / SHIP.dv, me.fuel < SHIP.dv * 0.2 ? 'warn' : '');
+  el.vHp.textContent = Math.round(me.hp) + '%';
+  setBar('bHp', me.hp / 100, me.hp <= 30 ? 'bad' : me.hp <= 60 ? 'warn' : '');
+  el.vG.textContent = me.accG.toFixed(1) + ' g';
+  setBar('bG', me.accG / SHIP.maxG, me.accG >= 5 ? 'bad' : me.accG >= 3 ? 'warn' : '');
+  const st = me.stress;
+  el.vCrew.textContent = st < 20 ? 'в норме' : st < 40 ? 'устают' : st < 70 ? 'приказы с задержкой' : 'на пределе';
+  setBar('bCrew', st / 100, st >= 70 ? 'bad' : st >= 40 ? 'warn' : '');
+  el.vDelay.textContent = reactionDelay().toFixed(1) + ' с';
+  el.vSpeed.textContent = (Math.hypot(me.vel[0], me.vel[1]) / 1000).toFixed(2) + ' км/с';
+  if (!draggingThr) el.thr.value = me.issuedThrottle;
+  el.vThr.textContent = me.issuedThrottle.toFixed(1) + ' g';
+  el.vTorp.textContent = me.torps;
+  el.vFlak.textContent = '●'.repeat(me.flak) + '○'.repeat(FLAK.charges - me.flak);
+  el.vFlak.title = me.flakTimer > 0 ? 'следующий заряд через ' + Math.ceil(me.flakTimer) + ' с' : '';
+  el.vSpread.textContent = (S.spread / D2R).toFixed(1).replace('.0', '') + '°';
+  const d = dist2(me.pos, tr.pos);
+  el.vContact.textContent = foe.alive
+    ? (tr.exact ? 'Контакт точный, ' + (d / 1000).toFixed(0) + ' км, корпус противника ' + Math.round(foe.hp) + '%'
+                : 'Контакт потерян ' + Math.round(S.t - tr.seenT) + ' с назад, примерно ' + (d / 1000).toFixed(0) + ' км')
+    : 'Противник уничтожен';
+  const th = nearestThreat('me');
+  const n = S.torps.filter(t => t.owner === 'foe').length;
+  el.vThreat.textContent = n ? 'Торпед противника: ' + n + (th && th.ttg < 1e8 ? ', ближайшая через ' + Math.round(th.ttg) + ' с' : '') : 'Торпед противника нет';
+  $('zhome').classList.toggle('on', !follow);
+  el.mFuel.textContent = Math.round(me.fuel);
+  setBar('mbFuel', me.fuel / SHIP.dv, me.fuel < SHIP.dv * 0.2 ? 'warn' : '');
+  el.mHp.textContent = Math.round(me.hp) + '%';
+  setBar('mbHp', me.hp / 100, me.hp <= 30 ? 'bad' : me.hp <= 60 ? 'warn' : '');
+  el.mG.textContent = me.accG.toFixed(1);
+  setBar('mbG', me.accG / SHIP.maxG, me.accG >= 5 ? 'bad' : me.accG >= 3 ? 'warn' : '');
+  el.mCrew.textContent = Math.round(me.stress) + '%';
+  setBar('mbCrew', me.stress / 100, me.stress >= 70 ? 'bad' : me.stress >= 40 ? 'warn' : '');
+  el.mContact.textContent = el.vContact.textContent;
+  el.mThreat.textContent = el.vThreat.textContent;
+  if (!draggingThr2) el.thr2.value = me.issuedThrottle;
+  el.vThr2.textContent = me.issuedThrottle.toFixed(1) + ' g';
+  const mm = String(Math.floor(S.t / 60)).padStart(2, '0'), ss = String(Math.floor(S.t % 60)).padStart(2, '0');
+  el.clock.textContent = 't ' + mm + ':' + ss + (paused ? ', пауза' : ', ×' + (scale < 10 ? scale.toFixed(1) : Math.round(scale)));
+}
+
+/* ---------- ввод ---------- */
+const canIssue = () => started && !S.over && S.me.alive;
+function cmdThrottle(v) { if (canIssue()) issue('throttle', clamp(v, 0, SHIP.maxG)); }
+function cmdRetro() {
+  if (!canIssue()) return;
+  const v = S.me.vel; if (Math.hypot(v[0], v[1]) < 1) return;
+  issue('heading', Math.atan2(-v[1], -v[0]));
+}
+function cmdFlakCursor() {
+  if (!canIssue()) return;
+  let a;
+  if (ptr.valid) { const w = ptrWorld(); a = Math.atan2(w[1] - S.me.pos[1], w[0] - S.me.pos[0]); }
+  else { const t = S.tracks.me; a = Math.atan2(t.pos[1] - S.me.pos[1], t.pos[0] - S.me.pos[0]); }
+  issue('flak', a);
+}
+const cmd = {
+  cut: () => { cmdThrottle(0); },
+  retro: cmdRetro,
+  dodge: () => canIssue() && issue('dodge'),
+  torp: () => canIssue() && issue('torp'),
+  flak: cmdFlakCursor,
+  flakAuto: () => canIssue() && issue('flakAuto'),
+  flakShip: () => canIssue() && issue('flakShip'),
+  plume: () => canIssue() && issue('plume'),
+};
+$('bCut').onclick = cmd.cut; $('bRetro').onclick = cmd.retro; $('bDodge').onclick = cmd.dodge;
+$('bTorp').onclick = cmd.torp; $('bFlak').onclick = cmd.flak; $('bFlakAuto').onclick = cmd.flakAuto; $('bFlakShip').onclick = cmd.flakShip; $('bPlume').onclick = cmd.plume;
+el.thr.addEventListener('input', () => cmdThrottle(+el.thr.value));
+el.spread.addEventListener('input', () => { S.spread = +el.spread.value * D2R; });
+
+function setPtr(e) { const r = cv.getBoundingClientRect(); ptr.x = e.clientX - r.left; ptr.y = e.clientY - r.top; ptr.valid = true; }
+
+cv.addEventListener('pointerleave', () => { if (!matchMedia('(pointer:coarse)').matches) ptr.valid = false; });
+let aimMode = false;
+function setAim(v) {
+  aimMode = v; $('dAim').classList.toggle('on', v);
+  if (v) sayHook('Коснитесь карты: куда выпустить облако');
+}
+function tapAt(x, y) {
+  if (!canIssue()) return;
+  const c = camCenter(), wx = c[0] + (x - cw / 2) * mpp, wy = c[1] - (y - ch / 2) * mpp;
+  const a = Math.atan2(wy - S.me.pos[1], wx - S.me.pos[0]);
+  if (aimMode) { issue('flak', a); setAim(false); } else issue('heading', a);
+}
+const pts = new Map();
+let pinch = null, pinchUsed = false, tapStart = null;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', e => {
+  setPtr(e);
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (pts.size >= 2) {
+    const [a, b] = [...pts.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, m: mppT };
+    pinchUsed = true; tapStart = null; return;
+  }
+  tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId, btn: e.button, lx: e.clientX, ly: e.clientY, drag: false };
+});
+cv.addEventListener('pointermove', e => {
+  setPtr(e);
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pts.size >= 2) {
+    const [a, b] = [...pts.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    mppT = clamp(pinch.m * pinch.d / d, 0.2, 3000); mpp = mppT;
+  } else if (tapStart && tapStart.id === e.pointerId && pts.size === 1) {
+    if (!tapStart.drag && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 6) {
+      tapStart.drag = true;
+      if (follow) { camC = [S.me.pos[0], S.me.pos[1]]; follow = false; }
+    }
+    if (tapStart.drag) {
+      camC[0] -= (e.clientX - tapStart.lx) * mpp; camC[1] += (e.clientY - tapStart.ly) * mpp;
+      tapStart.lx = e.clientX; tapStart.ly = e.clientY;
+    }
+  }
+});
+const endPtr = e => {
+  if (e.type === 'pointerup' && tapStart && tapStart.id === e.pointerId && !pinchUsed &&
+      !tapStart.drag && tapStart.btn === 0) { setPtr(e); tapAt(ptr.x, ptr.y); }
+  tapStart = null; pts.delete(e.pointerId);
+  if (pts.size < 2) pinch = null;
+  if (pts.size === 0) pinchUsed = false;
+};
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+const zoom = f => { mppT = clamp(mppT * f, 0.2, 3000); };
+function recenter() { follow = true; }
+function toggleShipView() { follow = true; if (mppT > 2) { prevMpp = mppT; mppT = 0.5; } else mppT = prevMpp > 2 ? prevMpp : 450; }
+cv.addEventListener('wheel', e => { e.preventDefault(); zoom(Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+$('zhome').onclick = recenter;
+$('zin').onclick = () => zoom(0.75); $('zout').onclick = () => zoom(1.33); $('zship').onclick = toggleShipView;
+$('dDodge').onclick = cmd.dodge; $('dPlume').onclick = cmd.plume; $('dTorp').onclick = cmd.torp; $('dRetro').onclick = cmd.retro;
+$('dFlakAuto').onclick = cmd.flakAuto; $('dFlakShip').onclick = cmd.flakShip; $('dCut').onclick = cmd.cut;
+$('dAim').onclick = () => setAim(!aimMode);
+$('dSheet').onclick = () => document.body.classList.add('sheet');
+$('sheetClose').onclick = () => document.body.classList.remove('sheet');
+el.thr2.addEventListener('input', () => cmdThrottle(+el.thr2.value));
+
+function setSpeed(v) {
+  chosen = v;
+  document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === v));
+}
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => setSpeed(+b.dataset.speed));
+const togglePause = () => { if (started && !S.over) { paused = !paused; el.bPause.classList.toggle('on', paused); el.dPause.classList.toggle('on', paused); } };
+el.bPause.onclick = togglePause; el.dPause.onclick = togglePause;
+setSpeed(1);
+
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = e.target.tagName;
+  if (e.code === 'Space') { if (tag === 'BUTTON') return; e.preventDefault(); togglePause(); return; }
+  if (!started) return;
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': e.preventDefault(); cmdThrottle(S.me.issuedThrottle + 1); break;
+    case 'KeyS': case 'ArrowDown': e.preventDefault(); cmdThrottle(S.me.issuedThrottle - 1); break;
+    case 'KeyX': cmd.cut(); break;
+    case 'KeyB': cmd.retro(); break;
+    case 'KeyE': cmd.dodge(); break;
+    case 'KeyT': cmd.torp(); break;
+    case 'KeyF': cmd.flak(); break;
+    case 'KeyG': cmd.flakAuto(); break;
+    case 'KeyH': cmd.flakShip(); break;
+    case 'KeyR': cmd.plume(); break;
+    case 'KeyZ': toggleShipView(); break;
+    case 'KeyC': recenter(); break;
+    case 'KeyP': togglePause(); break;
+    case 'Digit1': setSpeed(1); break;
+    case 'Digit2': setSpeed(3); break;
+    case 'Digit3': setSpeed(10); break;
+    case 'Digit4': setSpeed(30); break;
+  }
+});
+
+/* ---------- запуск и цикл ---------- */
+const overlay = $('overlay');
+function startGame() {
+  newGame(); follow = true; starPrev = null; started = true; paused = false; scale = chosen;
+  el.bPause.classList.remove('on'); el.dPause.classList.remove('on'); el.spread.value = 5;
+  overlay.hidden = true; toast.classList.remove('show');
+  sayHook('Бой начался. Оба корабля уже в движении. Обе стороны видят друг друга в последний раз.');
+}
+$('ovBtn').onclick = startGame;
+newGame();
+
+function showResult() {
+  S.reported = true;
+  const won = S.result.startsWith('Победа');
+  $('ovTitle').textContent = won ? 'Победа' : S.result.startsWith('Взаимное') ? 'Ничья' : 'Поражение';
+  const mm = Math.floor(S.t / 60), ss = Math.floor(S.t % 60);
+  $('ovText').textContent = S.result + '. Бой длился ' + mm + ' мин ' + ss + ' с. Осталось Δv: ' + Math.round(S.me.fuel) +
+    ' м/с, пущено торпед: ' + S.stats.launched + ', сбито торпед противника: ' + S.stats.kills + '.';
+  $('ovKeys').hidden = true; $('ovTouch').hidden = true;
+  $('ovBtn').textContent = 'Ещё раз';
+  overlay.hidden = false;
+}
+
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dtReal = Math.min(0.1, (now - last) / 1000); last = now;
+  mpp = Math.exp(Math.log(mpp) + (Math.log(mppT) - Math.log(mpp)) * Math.min(1, dtReal * 10));
+  if (started && !paused && !S.over) {
+    let target = chosen;
+    const th = nearestThreat('me');
+    if (el.autoSlow.checked && th) target = clamp(chosen * th.ttg / 70, 0.5, chosen);
+    scale += (target - scale) * Math.min(1, dtReal * 4);
+    acc += dtReal * scale;
+    let n = 0;
+    while (acc >= DT && n < 400) { step(DT); acc -= DT; n++; }
+    if (n >= 400) acc = 0;
+  }
+  if (S.over && !S.reported) setTimeout(showResult, 900), S.reported = true, S.pendingResult = true;
+  draw(); updateHud();
+  requestAnimationFrame(frame);
+}
+$('ovBtn').addEventListener('click', () => { $('ovKeys').hidden = false; $('ovTouch').hidden = false; });
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
