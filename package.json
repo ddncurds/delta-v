@@ -1,0 +1,10 @@
+{
+  "name": "deltav",
+  "private": true,
+  "type": "module",
+  "description": "Дельта-v: тактический бой кораблей в пустоте",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.js"
+  }
+}
