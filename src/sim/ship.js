@@ -1,10 +1,11 @@
 // Корабль: создание, манёвры и шаг движения. Тяга расходует топливо (запас Δv),
 // перегрузка копит усталость экипажа, а усталость замедляет выполнение приказов
-import { G0, SHIP, FLAK, D2R } from '../config.js';
+import { G0, SHIP, FLAK, D2R, FX_CONFIG } from '../config.js';
 import { clamp, wrap } from '../lib/math.js';
 import { S, sayTo, addFx } from './state.js';
 import { fly, bodyHit } from './bodies.js';
 import { nearestThreat, targetTrack } from './sensors.js';
+import { spawnDebris } from './debris.js';
 
 // spec: id, team, name, ctrl ('human' или 'ai'), owner — чей компьютер управляет кораблём в сетевом бою.
 // Экипаж, который устаёт от перегрузок, есть только у кораблей людей
@@ -50,10 +51,20 @@ export function doPlume(s) {
   sayTo(s.id, 'msg.plume');
 }
 
-// гибель корабля: причина, вспышка на карте
+// сила взрыва корабля: от торпеды рвутся баки — чем больше топлива, тем сильнее (до взрыва реактора)
+export function shipEnergy(s, why) {
+  const E = FX_CONFIG.energy;
+  return why === 'torp' ? E.torp + s.fuel / SHIP.dv : E[why] ?? E.ship;
+}
+
+// гибель корабля: причина, взрыв на карте и обломки корпуса. По сети уходит только событие взрыва:
+// скорость, сила, курс корпуса и seed — обломки каждый строит сам
 export function killShip(s, why, byTeam) {
   s.alive = false; s.hp = 0; s.deathBy = why;
-  addFx({ kind: 'boom', pos: [s.pos[0], s.pos[1]], dur: 4, r: 6000, team: byTeam });
+  const f = { kind: 'boom', pos: [s.pos[0], s.pos[1]], dur: 4, r: 6000, team: byTeam,
+    vel: [s.vel[0], s.vel[1]], en: shipEnergy(s, why), h: s.heading, hull: s.team, seed: (Math.random() * 2 ** 32) >>> 0 };
+  addFx(f);
+  spawnDebris(f);
 }
 
 export function stepShip(s, dt) {

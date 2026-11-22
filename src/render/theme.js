@@ -8,6 +8,11 @@ export const C = {
   white: '#ffffff', ember: '#ff8a4a', puff: '#a99ac8', threat: '#ff3b30', field: '#7f93a8', rim: '#dfe8f0',
 };
 
+// температурная шкала взрыва от горячего к остывшему: белый → жёлтый → оранжевый → тёмно-красный → тёмно-серый.
+// Газ к концу шкалы ещё и становится прозрачным, обломки остаются тёмно-серыми. ash — остывшие искры, shock — ударная волна
+export const FIRE = [[1, '#ffffff'], [0.8, '#ffe27a'], [0.55, '#ff8a3a'], [0.3, '#8a1f12'], [0, '#3a3f45']];
+export const FX_COL = { ash: '#4a525a', shock: '#d6e6ff', flash: '#ffffff', light: '#ffe2b8' };
+
 // ореол атмосферы планет по виду поверхности
 export const ATMO = { terra: '#6aa8ff', desert: '#ffb27a', gas: '#ffd7a3' };
 

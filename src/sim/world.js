@@ -6,7 +6,7 @@ import { makeBodies } from './bodies.js';
 import { t, tm } from '../i18n.js';
 import { newShip, stepShip } from './ship.js';
 import { initTracks, updateTracks, pickTarget } from './sensors.js';
-import { stepTorp, stepPellets, stepPlumes } from './weapons.js';
+import { stepTorp, stepPellets, stepPlumes, stepDebris } from './weapons.js';
 import { applyDueOrders } from './orders.js';
 import { predictPath } from './predict.js';
 import { newAi, aiStep } from './ai.js';
@@ -64,7 +64,7 @@ function placeShips(roster, opts) {
   });
   const myId = opts.myId ?? Math.max(0, ships.findIndex(s => s.ctrl === 'human'));
   setState({ t: 0, over: false, result: '', resultKey: null, reported: false, mp: !!opts.mp, forfeit: false, abort: '', nextId: 1,
-    hitLog: [], hitSeq: 0, bodies: [], ships, myId, torps: [], pellets: [], fx: [], tracks: [],
+    hitLog: [], hitSeq: 0, bodies: [], ships, myId, torps: [], pellets: [], debris: [], fx: [], tracks: [],
     lastHit: ships.map(() => -9), stats: ships.map(() => ({ launched: 0, kills: 0 })) });
 }
 
@@ -90,6 +90,7 @@ export function step(dt) {
   for (const t of S.torps) if (t.alive) stepTorp(t, dt);
   stepPellets(dt);
   stepPlumes(dt);
+  stepDebris(dt);
   S.torps = S.torps.filter(t => t.alive);
   S.fx = S.fx.filter(f => S.t - f.t0 < f.dur);
   for (const s of S.ships) if (s.crew && s.stress >= 100 && s.alive) { s.alive = false; s.deathBy = 'crew'; }
@@ -107,7 +108,7 @@ export function endBattle(key = resultOf(S.myId)) {
   S.over = true; S.resultKey = key; S.result = tm(key);
 }
 
-const DEATHS = ['crew', 'flak', 'plume', 'frag', 'crash', 'torp'];
+const DEATHS = ['crew', 'flak', 'plume', 'frag', 'crash', 'torp', 'debris'];
 const why = s => DEATHS.includes(s.deathBy) ? s.deathBy : 'torp';
 
 // итог боя глазами корабля id — ключ словаря и параметры. В дуэли — причина гибели, в командном бою — чья команда уцелела

@@ -14,6 +14,7 @@ import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl, netSpeedLi
 import { guestStep } from './net/snapshot.js';
 import { beginBattle, checkResult, initSession, renderOverlay } from './session.js';
 import { initLang } from './ui/lang.js';
+import { initFxSettings } from './ui/fx-settings.js';
 
 // сообщения симуляции (ключ словаря и параметры): своему кораблю — на экран на своём языке,
 // кораблям гостей — в очередь их снимков ключом, переведёт сам гость
@@ -37,6 +38,7 @@ fitInitialZoom();
 initLang(() => { renderOverlay(); mpRender(); rerenderStatus(); rerenderRooms(); updateHud(); hideToast(); });
 initScene(canvas);
 initHud();
+initFxSettings();
 initControls(canvas);
 initMultiplayer({ beginBattle });
 initSession();
@@ -66,7 +68,10 @@ function simTick() {
   const now = performance.now();
   const dtReal = Math.min(0.1, (now - last) / 1000); last = now;
   if (net.role === 'host' && run.started) { net.pauseReason = hostPauseReason(now); run.paused = !!net.pauseReason; }
-  const live = run.started && !run.paused && !S.over;
+  // hit-stop: после сильного взрыва на экране игра на миг замирает; в сетевом бою время не трогаем — только картинку
+  const stop = run.hitStop > 0;
+  if (stop) run.hitStop = Math.max(0, run.hitStop - dtReal);
+  const live = run.started && !run.paused && !S.over && !(stop && !S.mp);
   if (net.role === 'guest') { if (live) guestStep(dtReal * net.snapScale); }
   else if (live) {
     timeScale(dtReal);

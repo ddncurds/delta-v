@@ -2,6 +2,7 @@
 // Союзники видны всегда, противник — только пока его видит корабль гостя (иначе гость получает лишь «жив/нет»).
 // Гость применяет снимок и между снимками продолжает движение по инерции
 import { G0, SHIP, FLAK, BODY, TEAM } from '../config.js';
+import { spawnDebris, debrisGone } from '../sim/debris.js';
 import { clamp, wrap } from '../lib/math.js';
 import { S, gravAt, bodyHit, fly, normalizeRoster, eyeOf, endBattle } from '../sim/index.js';
 
@@ -37,7 +38,9 @@ export function makeSnapshot(id, sync, { scale, pauseReason, ack, say, result })
   const m = { type: 'snap', t: S.t, sc: scale, pa: pauseReason, ack, ships, eye: eye.id,
     tr: tr.map(t => t && { pos: t.pos, vel: t.vel, seenT: t.seenT, exact: t.exact }),
     torps: S.torps.map(t => ({ id: t.id, owner: t.owner, team: t.team, target: t.target, pos: t.pos, vel: t.vel, fuel: t.fuel, heat: t.heat, acc: t.acc })),
-    fx: fx.map(f => ({ id: f.id, kind: f.kind, pos: f.pos, t0: f.t0, dur: f.dur, r: f.r, team: f.team })),
+    // взрыв уходит событием: скорость, сила, курс корпуса и seed — искры и обломки гость строит сам
+    fx: fx.map(f => ({ id: f.id, kind: f.kind, pos: f.pos, t0: f.t0, dur: f.dur, r: f.r, team: f.team,
+      vel: f.vel, en: f.en, h: f.h, hull: f.hull, seed: f.seed })),
     fl: [...groups.values()], pd, say, stats: S.stats };
   if (S.over) { m.ov = true; m.res = result; }
   return m;
@@ -58,9 +61,15 @@ export function applySnapshot(m, keepIssued) {
   if (S.ships[m.eye]) S.tracks[m.eye] = m.tr;
   const prev = new Map(S.torps.map(t => [t.id, t]));
   S.torps = m.torps.map(t => Object.assign(prev.get(t.id) || { trail: [], lastTrail: -1e9, hits: 0 }, t, { alive: true }));
-  for (const f of m.fx) S.fx.push(f);
+  // обломки взрыва — те же, что у хоста: по seed, уже разлетевшиеся к моменту снимка
+  for (const f of m.fx) { S.fx.push(f); if (f.kind === 'boom' && Number.isFinite(f.seed)) spawnDebris(f, m.t); }
   for (const g of m.fl) for (const [i, x, y, vx, vy] of g.p) S.pellets.push({ owner: g.o, team: g.tm, age: g.age, b: g.b, i, dead: false, pos: [x, y], vel: [vx, vy] });
-  if (m.pd.length) { const dead = new Set(m.pd.map(([b, i]) => b + ':' + i)); S.pellets = S.pellets.filter(p => !dead.has(p.b + ':' + p.i)); }
+  if (m.pd.length) {
+    const dead = new Set(m.pd.map(([b, i]) => b + ':' + i)), gone = p => dead.has(p.b + ':' + p.i);
+    S.pellets = S.pellets.filter(p => !gone(p));
+    for (const d of S.debris) if (gone(d)) d.dead = true;
+    S.debris = S.debris.filter(d => !d.dead);
+  }
   S.t = m.t; S.stats = m.stats;
   if (m.ov && !S.over) endBattle(Array.isArray(m.res) ? [String(m.res[0]), m.res[1] || {}] : ['res.abort']);
 }
@@ -86,6 +95,11 @@ export function guestStep(dt) {
     p.age += dt; p.vel[0] += g[0] * dt; p.vel[1] += g[1] * dt; p.pos[0] += p.vel[0] * dt; p.pos[1] += p.vel[1] * dt;
   }
   S.pellets = S.pellets.filter(p => p.age <= FLAK.life && !bodyHit(p.pos[0], p.pos[1]));
+  for (const d of S.debris) {
+    d.pos[0] += d.vel[0] * dt; d.pos[1] += d.vel[1] * dt;
+    if (debrisGone(d) || bodyHit(d.pos[0], d.pos[1])) d.dead = true;
+  }
+  if (S.debris.length) S.debris = S.debris.filter(d => !d.dead);
   S.fx = S.fx.filter(f => S.t - f.t0 < f.dur);
   for (const tr of S.tracks[eyeOf(me).id]) {
     if (!tr || tr.exact) continue;

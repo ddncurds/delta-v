@@ -51,6 +51,8 @@ kbd{font:500 12px var(--font);color:var(--ink-2);border:1px solid var(--line);bo
 button.primary kbd,button.on kbd{color:inherit;border-color:currentColor;opacity:.8}
 .times{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .times button{justify-content:center;padding:7px 0}
+.fxq{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.fxq button{justify-content:center;padding:7px 0}
 input[type=range]{width:100%;accent-color:var(--me);margin:2px 0}
 label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:pointer}
 .small{font-size:13px;color:var(--ink-2)}

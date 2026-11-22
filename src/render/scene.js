@@ -1,22 +1,24 @@
 // Кадр тактической карты: фон, тела, прогноз курса, оружие, корабли, эффекты и подписи.
 // Светится только то, что излучает энергию: двигатели, торпеды, взрывы; сетка и кольца — самый тихий слой
-import { G0, FLAK, PLUME, SHIP, DETECT } from '../config.js';
+import { G0, FLAK, PLUME, SHIP, DETECT, FX_CONFIG } from '../config.js';
 import { dist } from '../lib/math.js';
 import { fmtDist } from '../lib/format.js';
 import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip } from '../sim/index.js';
 import { run } from '../run.js';
 import { pointer, COARSE } from '../ui/pointer.js';
-import { C, FONT } from './theme.js';
+import { C, FONT, FX_COL } from './theme.js';
 import { t as txt } from '../i18n.js';
 import { cam, camCenter, screenToWorld, addShake, updateShake } from './camera.js';
 import { updateStars, drawStars } from './stars.js';
 import { drawBody } from './planets.js';
 import { drawShipModel, drawShipIcon, shipLength } from './ship-models.js';
 import { iconLen, modelMix } from './lod.js';
-import { clock, tickClock, pulse, reducedMotion } from './clock.js';
+import { clock, tickClock, tickGame, pulse, reducedMotion } from './clock.js';
 import { glowSprite, drawGlow, rgba } from './glow.js';
 import { queueLabel, flushLabels, P } from './labels.js';
 import { syncFx, drawFx } from './fx.js';
+import { lightAt } from './explosion.js';
+import { boomSound } from '../ui/sound.js';
 import { newTrails, updateTrails, trailOf } from './trails.js';
 
 const GRAV_RINGS = [0.5, 0.2, 0.1, 0.05];   // линии равного притяжения, в g
@@ -40,7 +42,8 @@ export function initScene(canvas) {
 // dtReal — реальные секунды с прошлого кадра
 export function draw(dtReal = 0) {
   const t0 = perf ? performance.now() : 0;
-  tickClock(dtReal, run.paused);
+  tickClock(dtReal, run.paused || run.hitStop > 0);
+  tickGame(S, dtReal, run.paused);
   updateShake(dtReal);
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   ctx.fillStyle = C.paper; ctx.fillRect(0, 0, cam.w, cam.h);
@@ -61,7 +64,7 @@ export function draw(dtReal = 0) {
   drawPellets();
   drawTorps();
   drawShips();
-  drawFx(ctx, X, Y, cam.mpp, sideCol);
+  drawFx(ctx, X, Y, cam.mpp, sideCol, cam.w, cam.h);
   drawEdgeMarkers();
   flushLabels(ctx);
   ctx.restore();
@@ -88,10 +91,7 @@ function watchFx() {
       for (const s of S.ships) if (s.team !== r.owner) { const d = dist(s.pos, r.pos); if (d < bd) { bd = d; src = s; } }
       if (src) { const dx = r.pos[0] - src.pos[0], dy = r.pos[1] - src.pos[1], l = Math.hypot(dx, dy) || 1; r.drift = [dx / l, -dy / l]; }
     }
-    if (r.kind === 'boom' || r.kind === 'burst' || r.kind === 'frag') {
-      const d = Math.hypot(X(r.pos[0]) - mx, Y(r.pos[1]) - my), big = r.kind === 'boom' ? 6 : 3;
-      if (d < 300) addShake(big * (1 - d / 300));
-    }
+    if (r.en > 0) blastFeedback(r, mx, my);
   }
   // попадания по своему кораблю (шарики, выхлоп, осколки) и своя гибель
   if (prevMe && prevMe.S === S && prevMe.id === me.id) {
@@ -99,6 +99,21 @@ function watchFx() {
     else if (me.hp < prevMe.hp - 0.01) addShake(Math.min(2, 1 + (prevMe.hp - me.hp) / 5));
   }
   prevMe = { S, id: me.id, hp: me.hp, alive: me.alive };
+}
+
+// подача взрыва: тряска камеры с затуханием по расстоянию до своего корабля на экране, глухой удар,
+// а у сильного взрыва в кадре — hit-stop. Сила всего — от energy взрыва
+function blastFeedback(r, mx, my) {
+  const K = FX_CONFIG, sx = X(r.pos[0]), sy = Y(r.pos[1]), d = Math.hypot(sx - mx, sy - my);
+  if (d < K.shake.px) addShake(Math.min(K.shake.max, K.shake.amp * r.en) * (1 - d / K.shake.px));
+  // громкость: в кадре — полная, за кадром спадает с расстоянием от его центра
+  const off = Math.hypot(sx - cam.w / 2, sy - cam.h / 2) / Math.max(cam.w, cam.h);
+  boomSound(r.en, 1 / (1 + 4 * Math.max(0, off - 0.5) ** 2));
+  const onScreen = sx > 0 && sx < cam.w && sy > 0 && sy < cam.h;
+  if (onScreen && r.en >= K.hitStop.minE && !reducedMotion()) {
+    const u = Math.min(1, (r.en - K.hitStop.minE) / (2 - K.hitStop.minE));
+    run.hitStop = Math.max(run.hitStop, K.hitStop.dur[0] + (K.hitStop.dur[1] - K.hitStop.dur[0]) * u);
+  }
 }
 
 function niceStep(x) {
@@ -334,6 +349,9 @@ function drawShip(s, col) {
   const k = modelMix(Lp, s.team);
   if (k > 0) drawShipModel(ctx, s, col, len, x, y, turretAim(s), dim * k);
   if (k < 1) drawShipIcon(ctx, s, col, len, x, y, dim * (1 - k));
+  // вспышка близкого взрыва подсвечивает корпус
+  const l = lightAt(s.pos[0], s.pos[1]);
+  if (l > 0.02) drawGlow(ctx, glowSprite(FX_COL.light, 32), x, y, Math.max(12, len * 0.7), 0.6 * l);
 }
 
 // подпись у корабля или контакта, справа-снизу от силуэта

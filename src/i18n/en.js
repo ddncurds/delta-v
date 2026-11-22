@@ -39,6 +39,7 @@ export default {
   'spread.aria': 'Cloud spread angle', 'btn.torp': 'Launch torpedo <kbd>T</kbd>', 'btn.flak': 'At cursor <kbd>F</kbd>',
   'btn.flakAuto': 'At torpedo <kbd>G</kbd>', 'btn.flakShip': 'At target <kbd>H</kbd>', 'btn.target': 'Switch target <kbd>Q</kbd>',
   'sec.situation': 'Situation', 'sec.time': 'Time', 'autoSlow': 'Slow down on threat',
+  'sec.fx': 'Effects', 'fx.quality': 'Effects quality', 'fx.low': 'Low', 'fx.medium': 'Medium', 'fx.high': 'High', 'fx.sound': 'Sound',
 
   // instruments
   'hud.crew.ok': 'normal', 'hud.crew.tired': 'tiring', 'hud.crew.slow': 'orders delayed', 'hud.crew.limit': 'at the limit',
@@ -64,6 +65,7 @@ export default {
   'msg.torpCrashed': 'Your torpedo crashed into {body}', 'msg.torpHit': 'Torpedo hit {name}',
   'msg.fragOwn': 'Your torpedo exploded {dist|d} from {name}, fragments: −{dmg} HP',
   'msg.fragHit': 'A torpedo exploded {dist|d} away, fragments: −{dmg} HP',
+  'msg.debrisHit': 'Wreckage hit the hull: −{dmg} HP',
   'msg.missOwn': 'Your torpedo missed by {dist|d} and exploded', 'msg.missHit': 'A torpedo missed by {dist|d} and exploded',
   'msg.torpDowned': 'Enemy torpedo shot down', 'msg.ownTorpDowned': 'Your torpedo was shot down',
   'msg.flakHitMe': 'Enemy cloud hit your ship', 'msg.flakHitThem': 'Your cloud hit {name}',
@@ -84,6 +86,7 @@ export default {
   'res.win.frag': 'Victory: the enemy ship was finished off by torpedo fragments', 'res.loss.frag': 'Defeat: the hull was destroyed by torpedo fragments',
   'res.win.crash': 'Victory: the enemy ship crashed into the surface', 'res.loss.crash': 'Defeat: the ship crashed into the surface',
   'res.win.torp': 'Victory: the enemy ship was destroyed by a torpedo', 'res.loss.torp': 'Defeat: the ship was destroyed by a torpedo',
+  'res.win.debris': 'Victory: the enemy ship was smashed by wreckage', 'res.loss.debris': 'Defeat: the hull was smashed by wreckage',
   'res.win.team': 'Victory: all enemy ships destroyed', 'res.win.teamDead': 'Victory: all enemy ships destroyed; your ship was lost, but the team held',
   'res.loss.team': 'Defeat: your team was destroyed',
   'res.t.win': 'Victory', 'res.t.loss': 'Defeat', 'res.t.draw': 'Draw', 'res.t.abort': 'Battle aborted',

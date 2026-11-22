@@ -1,11 +1,15 @@
 // Оружие: торпеды, облако шариков и выхлоп двигателя как оружие ближнего боя.
 // Своих оружие не задевает: шарики, осколки и факел опасны только кораблям и торпедам другой команды
-import { FLAK, TORP, PLUME, D2R } from '../config.js';
+import { FLAK, TORP, PLUME, D2R, FX_CONFIG } from '../config.js';
 import { clamp, dist, closestDist, solveIntercept } from '../lib/math.js';
 import { S, sayTo, addFx } from './state.js';
 import { gravAt, bodyHit } from './bodies.js';
 import { nearestThreat, targetTrack, noteFlak } from './sensors.js';
 import { killShip } from './ship.js';
+import { debrisGone } from './debris.js';
+
+// seed взрыва: по нему каждый игрок одинаково строит искры и обломки
+const newSeed = () => (Math.random() * 2 ** 32) >>> 0;
 
 // угол выстрела облаком по ближайшей вражеской торпеде с упреждением; null, если торпед нет
 export function autoAim(s) {
@@ -132,7 +136,8 @@ function detonateMiss(t, tgt, dmin) {
   let hits = 0;
   for (let i = 0; i < TORP.frags; i++) if (Math.random() < p) hits++;
   const dmg = hits * TORP.fragDmg;
-  addFx({ kind: 'frag', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: Math.min(3000, Math.max(900, dmin * 1.4)), team: t.team });
+  addFx({ kind: 'frag', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: Math.min(3000, Math.max(900, dmin * 1.4)), team: t.team,
+    vel: [t.vel[0], t.vel[1]], en: FX_CONFIG.energy.frag, seed: newSeed() });
   const dist = Math.round(dmin);
   if (dmg > 0) {
     tgt.hp -= dmg;
@@ -172,7 +177,8 @@ export function stepPellets(dt) {
         logHit(p);
         if (t.hits >= FLAK.kill) {
           t.alive = false;
-          addFx({ kind: 'burst', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: 2500, team: t.team });
+          addFx({ kind: 'burst', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: 2500, team: t.team,
+            vel: [t.vel[0], t.vel[1]], en: FX_CONFIG.energy.burst, seed: newSeed() });
           if (S.stats[p.owner]) S.stats[p.owner].kills++;
           sayTo(p.owner, 'msg.torpDowned'); sayTo(t.owner, 'msg.ownTorpDowned');
         }
@@ -184,13 +190,42 @@ export function stepPellets(dt) {
   for (const [tg, by] of hitNow) {
     if (S.t - S.lastHit[tg.id] > 2) {
       S.lastHit[tg.id] = S.t;
+      // искры попадания по корпусу — самый слабый взрыв
+      addFx({ kind: 'hit', pos: [tg.pos[0], tg.pos[1]], dur: 1, r: 300, team: S.ships[by].team,
+        vel: [tg.vel[0], tg.vel[1]], en: FX_CONFIG.energy.hit, seed: newSeed() });
       sayTo(tg.id, 'msg.flakHitMe'); sayTo(by, 'msg.flakHitThem', { name: tg.name });
     }
   }
 }
 
-// шарик пропал от попадания: сетевым гостям надо убрать его у себя
+// шарик или обломок пропал от попадания: сетевым гостям надо убрать его у себя (b — залп или взрыв, i — номер в нём)
 function logHit(p) { if (S.mp) S.hitLog.push([p.b, p.i, ++S.hitSeq]); }
+
+// опасные обломки летят по прямой без затухания; пропадают дальше FX_CONFIG.simRadius от центра взрыва,
+// в теле или в корабле. Урон кораблю — от массы обломка и скорости относительно корабля, любой стороне
+export function stepDebris(dt) {
+  if (!S.debris.length) return;
+  const D = FX_CONFIG.debris, n = S.debris.length;   // обломки новых взрывов этого шага начнут лететь со следующего
+  for (let k = 0; k < n; k++) {
+    const d = S.debris[k];
+    d.pos[0] += d.vel[0] * dt; d.pos[1] += d.vel[1] * dt;
+    if (debrisGone(d) || bodyHit(d.pos[0], d.pos[1])) { d.dead = true; continue; }
+    for (const tg of S.ships) {
+      if (!tg.alive) continue;
+      const rvx = d.vel[0] - tg.vel[0], rvy = d.vel[1] - tg.vel[1];
+      if (closestDist(d.pos[0] - tg.pos[0] - rvx * dt, d.pos[1] - tg.pos[1] - rvy * dt, rvx, rvy, dt) >= D.hitR) continue;
+      d.dead = true; logHit(d);
+      const dmg = Math.round(Math.min(D.dmgMax, 0.5 * d.m * (rvx * rvx + rvy * rvy) / D.jPerHp));
+      if (dmg > 0) {
+        tg.hp -= dmg;
+        sayTo(tg.id, 'msg.debrisHit', { dmg });
+        if (tg.hp <= 0) killShip(tg, 'debris', d.team);
+      }
+      break;
+    }
+  }
+  S.debris = S.debris.filter(d => !d.dead);
+}
 
 // насколько точка p внутри факела корабля s: 0 — вне факела, 1 — у самого сопла
 export function plumeFactor(s, p) {

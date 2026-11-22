@@ -3,7 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { labelRect, overlap, placeLabels } from '../src/render/label-layout.js';
 import { clock, tickClock } from '../src/render/clock.js';
-import { syncFx, fxRecords, fxParticles, FX_LIFE, MAX_PARTS } from '../src/render/fx.js';
+import { syncFx, fxRecords, FX_LIFE } from '../src/render/fx.js';
+import { explosionStats, sparkCount, debrisPieces, lightAt, setQuality, fireColor } from '../src/render/explosion.js';
+import { FX_CONFIG } from '../src/config.js';
 import { newTrails, updateTrails, trailOf, TRAIL_MAX } from '../src/render/trails.js';
 import { iconLen, iconMin, modelMix, ICON_MIN_PX, MODEL_MIN_PX } from '../src/render/lod.js';
 
@@ -56,8 +58,7 @@ test('эффекты: пауза замораживает, новый бой о�
   for (let i = 0; i < 30; i++) S2.fx.push({ kind: 'boom', pos: [i * 1000, 0], t0: 0, dur: 4, r: 6000, team: 0 });
   syncFx(S2);
   assert.equal(fxRecords().length, 30, 'эффекты прошлого боя не видны');
-  assert.ok(fxParticles().length <= MAX_PARTS);
-  assert.ok(fxParticles().every(p => fxRecords().includes(p.rec)));
+  assert.ok(sparkCount() <= FX_CONFIG.maxParts, 'искр не больше лимита: старейшие пропадают первыми');
 });
 
 test('следы: не больше 120 точек, сброс при уходе времени назад, разрыв при потере контакта', () => {
@@ -94,4 +95,44 @@ test('iconLen: монотонность и непрерывность на по�
   }
   assert.equal(iconLen(10, 0), ICON_MIN_PX);
   assert.ok(Math.abs(iconLen(10, 1) - ICON_MIN_PX * 55 / 46) < 1e-9);
+});
+
+// взрыв корабля в пустоте: событие как у симуляции
+const boom = (o = {}) => ({ kind: 'boom', pos: [0, 0], vel: [0, 0], t0: 0, dur: 4, r: 6000, team: 0, en: 1, h: 0, hull: 1, seed: 12345, id: 7, ...o });
+
+test('взрыв: искры и обломки по seed одинаковы, число частиц растёт с energy и качеством', () => {
+  const count = (en, q = 'high', seed = 12345) => {
+    setQuality(q); clock.fx = 0; clock.game = 0;
+    syncFx({ t: 0, fx: [boom({ en, seed })] });
+    return explosionStats();
+  };
+  const a = count(1), b = count(1);
+  assert.deepEqual(a, b, 'один seed — одна картинка');
+  assert.ok(count(0.2).sparks < count(1).sparks && count(1).sparks < count(2).sparks);
+  assert.ok(count(1, 'low').sparks < count(1, 'high').sparks);
+  assert.equal(count(1).pieces, 16, 'обломков 6 + 10·energy');
+  setQuality('high');
+});
+
+test('взрыв: обломки летят по прямой без затухания, искры остывают, но не пропадают до simRadius', () => {
+  clock.fx = 0; clock.game = 0;
+  const S = { t: 0, fx: [boom()] };
+  syncFx(S);
+  const n0 = sparkCount();
+  for (let i = 1; i <= 100; i++) { clock.fx = i * 0.1; clock.game = i * 0.1; syncFx(S); }
+  assert.equal(sparkCount(), n0, 'за 10 с остывшие искры остались — быстрые ещё не долетели до 20 км');
+  const far = debrisPieces().filter(p => Math.hypot(p.x0 + p.vx * 10, p.y0 + p.vy * 10) > 3000);
+  assert.ok(far.length >= 2, `дальше 3 км за 10 с: ${far.length}`);
+  for (let i = 1; i <= 60; i++) { clock.game = 10 + i * 10; syncFx(S); }
+  assert.ok(sparkCount() < n0 * 0.5, 'дальние искры убраны за simRadius');
+});
+
+test('взрыв: вспышка подсвечивает близкие объекты и гаснет; цвет остывает к тёмно-серому', () => {
+  clock.fx = 0; clock.game = 0;
+  syncFx({ t: 0, fx: [boom()] });
+  assert.ok(lightAt(100, 0) > 0.5);
+  assert.equal(lightAt(50000, 0), 0);
+  assert.equal(lightAt(100, 0, 2), 0);
+  assert.equal(fireColor(1), '#ffffff');
+  assert.equal(fireColor(0), '#3a3f45');
 });

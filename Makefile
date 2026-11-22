@@ -20,8 +20,8 @@ offline: ## пересобрать offline.js — запуск игры из ind
 test: ## все тесты
 	$(NODE) --test tests/*.test.js
 
-test-sim: ## тесты симуляции: топливо, корабль, оружие, сенсоры, мир, команды, состав, ИИ
-	$(NODE) --test tests/fuel.test.js tests/ship.test.js tests/weapons.test.js tests/sensors.test.js tests/world.test.js tests/teams.test.js tests/roster.test.js tests/ai.test.js
+test-sim: ## тесты симуляции: топливо, корабль, оружие, обломки, сенсоры, мир, команды, состав, ИИ
+	$(NODE) --test tests/fuel.test.js tests/ship.test.js tests/weapons.test.js tests/debris.test.js tests/sensors.test.js tests/world.test.js tests/teams.test.js tests/roster.test.js tests/ai.test.js
 
 test-net: ## тесты сетевого боя: снимки, лобби, хост, гость и сквозной бой хоста с двумя гостями
 	$(NODE) --test tests/net.test.js tests/mp-lobby.test.js tests/mp-host.test.js tests/mp-guest.test.js tests/mp-e2e.test.js

@@ -174,3 +174,6 @@ export function drawShipIcon(ctx, s, col, lenPx, x, y, alpha = 1) {
   ctx.restore();
   A = 1;
 }
+
+// контур корпуса в долях длины (нос в +x): из него нарезаются обломки при взрыве
+export const hullOutline = team => team === 0 ? ROCI.hull : FRIGATE.hull;
