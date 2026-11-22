@@ -7,13 +7,19 @@ import { startBurn, doDodge, doPlume } from './ship.js';
 import { fireFlak, launchTorp } from './weapons.js';
 import { nearestThreat, targetTrack, pickTarget } from './sensors.js';
 import { impactIn } from './predict.js';
+import * as baseline from './ai-baseline.js';
 
 // таймеры разнесены случайно, чтобы корабли одной команды не действовали синхронно
-export const newAi = () => ({ nextSalvo: 12 + Math.random() * 15, salvoLeft: 0, salvoAt: 0, nextNudge: 4 + Math.random() * 6,
-  nextFlak: 0, nextGeo: Math.random(), nextRetarget: 8 + Math.random() * 6, plumeTorp: null });
+// policy — какой ИИ ведёт корабль: 'baseline' — замороженная версия (ai-baseline.js), иначе текущая
+export function newAi(policy = 'new') {
+  if (policy === 'baseline') return baseline.newAi();
+  return { policy, nextSalvo: 12 + Math.random() * 15, salvoLeft: 0, salvoAt: 0, nextNudge: 4 + Math.random() * 6,
+  nextFlak: 0, nextGeo: Math.random(), nextRetarget: 8 + Math.random() * 6, plumeTorp: null };
+}
 
 export function aiStep(f) {
   const ai = f.ai;
+  if (ai.policy === 'baseline') return baseline.aiStep(f);
   if (!f.alive) return;
   if (S.t >= ai.nextRetarget || !targetTrack(f)) { f.targetId = pickTarget(f); ai.nextRetarget = S.t + 10 + Math.random() * 5; }
   if (avoidBodies(f, ai)) return;
