@@ -10,10 +10,16 @@ import { impactIn } from './predict.js';
 import * as baseline from './ai-baseline.js';
 
 // таймеры разнесены случайно, чтобы корабли одной команды не действовали синхронно
-// policy — какой ИИ ведёт корабль: 'baseline' — замороженная версия (ai-baseline.js), иначе текущая
-export function newAi(policy = 'new') {
+// параметры ИИ: окна реакции по времени до попадания ttg, с; топливо, м/с
+export const AI = {
+  plumeTtg: [2, 8], plumeP: 1, plumeFuel: 250,   // выхлоп по торпеде: окно ttg, вероятность, минимум топлива
+  dodge: true, dodgeTtg: [8, 17],                 // уклонение — только раньше окна выхлопа
+};
+
+// policy — какой ИИ ведёт корабль: 'baseline' — замороженная версия (ai-baseline.js), иначе текущая; p — правка параметров AI
+export function newAi(policy = 'new', p = {}) {
   if (policy === 'baseline') return baseline.newAi();
-  return { policy, nextSalvo: 12 + Math.random() * 15, salvoLeft: 0, salvoAt: 0, nextNudge: 4 + Math.random() * 6,
+  return { policy, p: { ...AI, ...p }, nextSalvo: 12 + Math.random() * 15, salvoLeft: 0, salvoAt: 0, nextNudge: 4 + Math.random() * 6,
   nextFlak: 0, nextGeo: Math.random(), nextRetarget: 8 + Math.random() * 6, plumeTorp: null };
 }
 
@@ -30,11 +36,14 @@ export function aiStep(f) {
       const ang = solveIntercept(f.pos, f.vel, th.t.pos, th.t.vel, FLAK.speed) + (Math.random() * 2 - 1) * 1.5 * D2R;
       fireFlak(f, ang); ai.nextFlak = S.t + 3.5;
     }
-    if (th.ttg < 17 && f.burnEnd < 0 && f.fuel > 250) doDodge(f);
-    else if (th.ttg < 8 && th.ttg > 2 && f.burnEnd < 0 && f.fuel > 250 && ai.plumeTorp !== th.t) {
+    // выхлоп раньше уклонения: боковым рывком от торпеды не уйти, а факел её плавит.
+    // Решение принимается один раз на торпеду; идущий выхлоп ничто не прерывает
+    const P = ai.p;
+    if (th.ttg < P.plumeTtg[1] && th.ttg > P.plumeTtg[0] && f.burnEnd < 0 && f.fuel > P.plumeFuel && ai.plumeTorp !== th.t) {
       ai.plumeTorp = th.t;
-      if (Math.random() < 0.6) doPlume(f);
+      if (Math.random() < P.plumeP) doPlume(f);
     }
+    if (P.dodge && th.ttg < P.dodgeTtg[1] && th.ttg >= P.dodgeTtg[0] && f.burnEnd < 0 && f.fuel > P.plumeFuel) doDodge(f);
   }
   if (!tr) return;
   if ((!th || th.ttg > 40) && tr.exact && f.flak >= 2 && f.flakCd <= 0 && S.t >= ai.nextFlak && dist(tr.pos, f.pos) < 30000) {
