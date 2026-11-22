@@ -2,13 +2,15 @@
 import { G0, BODY } from '../config.js';
 import { dist } from '../lib/math.js';
 import { S } from './state.js';
+import { t } from '../i18n.js';
 
 // планета сбоку от линии боя и одна-две луны вокруг неё; тела неподвижны.
 // look и seed задают внешний вид: по ним строится текстура, одинаковая у обоих игроков сетевого боя
 export function makeBodies() {
   const R = ([a, b]) => a + Math.random() * (b - a);
   const any = a => a[Math.floor(Math.random() * a.length)];
-  const names = BODY.names.slice().sort(() => Math.random() - .5);
+  // имена — на языке того, кто создаёт мир (в сетевом бою — хоста)
+  const names = t('bodies').split(',').sort(() => Math.random() - .5);
   const mk = (kind, x, y, r, g) => ({ kind, look: any(BODY.looks[kind]), seed: Math.floor(Math.random() * 2 ** 31),
     name: names.pop(), pos: [x, y], r, mu: g * G0 * r * r });
   const side = Math.random() < .5 ? -1 : 1;

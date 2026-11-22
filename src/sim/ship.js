@@ -27,14 +27,14 @@ export function startBurn(s, ang, g, dur) {
 // уклонение: рывок поперёк линии на торпеду (или на цель), в ту сторону, куда уже сносит
 export function doDodge(s) {
   const th = nearestThreat(s), tr = th ? th.t : targetTrack(s);
-  if (!tr) { sayTo(s.id, 'Уклоняться не от чего'); return; }
+  if (!tr) { sayTo(s.id, 'msg.noDodge'); return; }
   const lx = tr.pos[0] - s.pos[0], ly = tr.pos[1] - s.pos[1];
   const rvx = s.vel[0] - tr.vel[0], rvy = s.vel[1] - tr.vel[1];
   const R = Math.hypot(lx, ly) || 1;
   const px = -ly / R, py = lx / R;
   const sg = (rvx * px + rvy * py) >= 0 ? 1 : -1;
   startBurn(s, Math.atan2(py * sg, px * sg), 6, 5);
-  sayTo(s.id, 'Уклонение: 6 g, 5 с');
+  sayTo(s.id, 'msg.dodge');
 }
 
 // курс кормой на ближайшую торпеду или на цель; без них — прежний курс
@@ -47,7 +47,7 @@ export function awayAngle(s) {
 export function doPlume(s) {
   startBurn(s, awayAngle(s), 7, 6);
   s.aimAway = true;
-  sayTo(s.id, 'Выхлоп на цель: 7 g, 6 с');
+  sayTo(s.id, 'msg.plume');
 }
 
 // гибель корабля: причина, вспышка на карте
@@ -70,7 +70,7 @@ export function stepShip(s, dt) {
   const hb = bodyHit(s.pos[0], s.pos[1]);
   if (hb) {
     killShip(s, 'crash', 1 - s.team);
-    for (const o of S.ships) if (o !== s) sayTo(o.id, (o.team === s.team ? 'Союзник ' : 'Противник ') + s.name + ' разбился о ' + hb.name);
+    for (const o of S.ships) if (o !== s) sayTo(o.id, o.team === s.team ? 'msg.allyCrashed' : 'msg.enemyCrashed', { name: s.name, body: hb.name });
     return;
   }
   s.flakCd = Math.max(0, s.flakCd - dt);

@@ -15,7 +15,7 @@ export function autoAim(s) {
 }
 
 export function fireFlak(s, ang) {
-  if (s.flak <= 0 || s.flakCd > 0) { sayTo(s.id, 'Облако не готово'); return false; }
+  if (s.flak <= 0 || s.flakCd > 0) { sayTo(s.id, 'msg.flakNotReady'); return false; }
   s.flak--; s.flakCd = FLAK.cd;
   s.fuel = Math.max(0, s.fuel - FLAK.mass);
   if (s.flakTimer <= 0) s.flakTimer = FLAK.recharge;
@@ -36,16 +36,16 @@ export function fireFlak(s, ang) {
 }
 
 export function launchTorp(s) {
-  if (s.torps <= 0) { sayTo(s.id, 'Торпеды закончились'); return false; }
+  if (s.torps <= 0) { sayTo(s.id, 'msg.noTorps'); return false; }
   const tr = targetTrack(s);
-  if (!tr) { sayTo(s.id, 'Нет цели для торпеды'); return false; }
+  if (!tr) { sayTo(s.id, 'msg.noTorpTarget'); return false; }
   s.torps--; S.stats[s.id].launched++;
   const ang = Math.atan2(tr.pos[1] - s.pos[1], tr.pos[0] - s.pos[0]);
   S.torps.push({ id: S.nextId++, owner: s.id, team: s.team, target: s.targetId, pos: [s.pos[0], s.pos[1]],
     vel: [s.vel[0] + Math.cos(ang) * 100, s.vel[1] + Math.sin(ang) * 100],
     fuel: TORP.dv, age: 0, alive: true, hits: 0, heat: 0, acc: 0, trail: [], lastTrail: 0 });
   const tgt = S.ships[s.targetId];
-  sayTo(s.id, 'Торпеда пущена по ' + tgt.name); sayTo(tgt.id, 'Противник ' + s.name + ' пустил торпеду');
+  sayTo(s.id, 'msg.torpLaunched', { name: tgt.name }); sayTo(tgt.id, 'msg.enemyLaunched', { name: s.name });
   return true;
 }
 
@@ -89,7 +89,7 @@ export function stepTorp(t, dt) {
   const hb = bodyHit(t.pos[0], t.pos[1]);
   if (hb) {
     fizzle(t);
-    sayTo(t.owner, 'Ваша торпеда врезалась в ' + hb.name);
+    sayTo(t.owner, 'msg.torpCrashed', { body: hb.name });
     return;
   }
   if (t.age - t.lastTrail >= 1) { t.lastTrail = t.age; t.trail.push([t.pos[0], t.pos[1]]); if (t.trail.length > 90) t.trail.shift(); }
@@ -101,7 +101,7 @@ export function stepTorp(t, dt) {
       if (closestDist(t.pos[0] - e.pos[0] - rvx * dt, t.pos[1] - e.pos[1] - rvy * dt, rvx, rvy, dt) < TORP.blast) {
         t.alive = false;
         killShip(e, 'torp', t.team);
-        sayTo(t.owner, 'Торпеда попала в ' + e.name);
+        sayTo(t.owner, 'msg.torpHit', { name: e.name });
         return;
       }
     }
@@ -131,15 +131,15 @@ function detonateMiss(t, tgt, dmin) {
   for (let i = 0; i < TORP.frags; i++) if (Math.random() < p) hits++;
   const dmg = hits * TORP.fragDmg;
   addFx({ kind: 'frag', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: Math.min(3000, Math.max(900, dmin * 1.4)), team: t.team });
-  const d = Math.round(dmin), dtxt = d >= 1000 ? (d / 1000).toFixed(1) + ' км' : d + ' м';
+  const dist = Math.round(dmin);
   if (dmg > 0) {
     tgt.hp -= dmg;
-    sayTo(t.owner, 'Ваша торпеда взорвалась в ' + dtxt + ' от ' + tgt.name + ', осколки: −' + dmg + ' HP');
-    sayTo(tgt.id, 'Торпеда взорвалась в ' + dtxt + ', осколки: −' + dmg + ' HP');
+    sayTo(t.owner, 'msg.fragOwn', { dist, name: tgt.name, dmg });
+    sayTo(tgt.id, 'msg.fragHit', { dist, dmg });
     if (tgt.hp <= 0) killShip(tgt, 'frag', t.team);
   } else {
-    sayTo(t.owner, 'Ваша торпеда промахнулась на ' + dtxt + ' и взорвалась');
-    sayTo(tgt.id, 'Торпеда промахнулась на ' + dtxt + ' и взорвалась');
+    sayTo(t.owner, 'msg.missOwn', { dist });
+    sayTo(tgt.id, 'msg.missHit', { dist });
   }
 }
 
@@ -172,7 +172,7 @@ export function stepPellets(dt) {
           t.alive = false;
           addFx({ kind: 'burst', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: 2500, team: t.team });
           if (S.stats[p.owner]) S.stats[p.owner].kills++;
-          sayTo(p.owner, 'Торпеда противника сбита'); sayTo(t.owner, 'Ваша торпеда сбита');
+          sayTo(p.owner, 'msg.torpDowned'); sayTo(t.owner, 'msg.ownTorpDowned');
         }
         break;
       }
@@ -182,7 +182,7 @@ export function stepPellets(dt) {
   for (const [tg, by] of hitNow) {
     if (S.t - S.lastHit[tg.id] > 2) {
       S.lastHit[tg.id] = S.t;
-      sayTo(tg.id, 'Облако противника попало по вашему кораблю'); sayTo(by, 'Ваше облако попало по ' + tg.name);
+      sayTo(tg.id, 'msg.flakHitMe'); sayTo(by, 'msg.flakHitThem', { name: tg.name });
     }
   }
 }
@@ -215,7 +215,7 @@ export function stepPlumes(dt) {
         t.alive = false;
         addFx({ kind: 'melt', pos: [t.pos[0], t.pos[1]], dur: 2.5, r: 2500, team: t.team });
         S.stats[s.id].kills++;
-        sayTo(s.id, 'Торпеда противника расплавлена выхлопом'); sayTo(t.owner, 'Ваша торпеда расплавлена выхлопом противника');
+        sayTo(s.id, 'msg.torpMelted'); sayTo(t.owner, 'msg.ownTorpMelted');
       }
     }
     for (const tgt of S.ships) {
@@ -223,7 +223,7 @@ export function stepPlumes(dt) {
       const f = plumeFactor(s, tgt.pos);
       if (f <= 0) continue;
       tgt.hp -= PLUME.shipRate * s.accG * f * dt;
-      if (S.t - S.lastHit[tgt.id] > 2) { S.lastHit[tgt.id] = S.t; sayTo(tgt.id, 'Выхлоп противника плавит ваш корпус'); sayTo(s.id, 'Ваш выхлоп плавит ' + tgt.name); }
+      if (S.t - S.lastHit[tgt.id] > 2) { S.lastHit[tgt.id] = S.t; sayTo(tgt.id, 'msg.plumeMe'); sayTo(s.id, 'msg.plumeThem', { name: tgt.name }); }
       if (tgt.hp <= 0) killShip(tgt, 'plume', s.team);
     }
   }

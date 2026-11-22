@@ -1,6 +1,8 @@
 // Транспорт сетевой игры: MQTT через брокер flespi.
 // Топики: lobby/<код> — retained-объявление открытой комнаты; room/<код>/g — от гостей хосту;
 // room/<код>/h — от хоста всем гостям; room/<код>/h/<id гостя> — снимки и ответы одному гостю
+import { t } from '../i18n.js';
+
 export const NET_CFG = { url: 'wss://mqtt.flespi.io', token: '', prefix: 'deltav/v4',
   lib: 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js', maxSpeed: 10,
   // сроки, мс: ответ комнаты на вход, тишина до паузы «нет связи», тишина до ухода (гость — ИИ, хост — бой прерван)
@@ -30,7 +32,7 @@ function loadMqtt() {
     const sc = document.createElement('script');
     sc.src = NET_CFG.lib;
     sc.onload = () => ok(window.mqtt);
-    sc.onerror = () => { mqttLib = null; fail(new Error('не загрузилась библиотека MQTT')); };
+    sc.onerror = () => { mqttLib = null; fail(new Error(t('mp.libFail'))); };
     document.head.appendChild(sc);
   });
   return mqttLib;
@@ -39,7 +41,7 @@ function loadMqtt() {
 // will — «завещание»: сообщение, которое брокер отправит сам, если клиент пропадёт.
 // onLateError — ошибки после установленного соединения
 export async function connect(token, will, onLateError) {
-  if (!token) throw new Error('нужен токен flespi');
+  if (!token) throw new Error(t('mp.noToken'));
   const lib = await loadMqtt();
   return new Promise((ok, fail) => {
     const c = lib.connect(NET_CFG.url, { username: token, protocolVersion: 5, clean: true,

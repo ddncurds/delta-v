@@ -66,6 +66,10 @@ label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:poin
 .keys dd{margin:0;color:var(--ink-2)}
 .card button.primary{justify-content:center;padding:11px 14px;font-size:17px}
 [hidden]{display:none!important}
+.langs{display:flex;gap:4px;justify-content:flex-end}
+.langs button{padding:3px 9px;font-size:13px}
+.langs button.on{border-color:var(--me);color:var(--me)}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .roster{display:flex;flex-direction:column;gap:8px}
 .roster h3{margin:0;font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
 .rteams{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}

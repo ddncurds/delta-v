@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dom, PAGE_IDS } from './dom-stub.js';
+import './lang-ru.js';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 // крутить кадры, пока не выполнится условие (шаг симуляции — 50 мс игрового времени)

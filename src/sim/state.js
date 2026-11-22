@@ -5,11 +5,10 @@ export let S = null;
 export function setState(next) { S = next; }
 
 let sayHook = () => {};
-// сообщение экипажу корабля id; на экран попадают только сообщения своему кораблю, гостям сети они уходят в снимке
+// сообщение экипажу корабля id: ключ словаря (src/i18n) и параметры. На экран попадают только сообщения своему кораблю,
+// гостям сети они уходят в снимке ключом — и каждый читает их на своём языке
 export const setSayHook = f => { sayHook = f; };
-export const sayTo = (id, t) => sayHook(t, id);
-// сообщение всем кораблям команды team
-export const sayTeam = (team, t) => { for (const s of S.ships) if (s.team === team) sayTo(s.id, t); };
+export const sayTo = (id, key, p) => sayHook(id, key, p);
 
 export const shipOf = id => S.ships[id];
 export const myShip = () => S.ships[S.myId];

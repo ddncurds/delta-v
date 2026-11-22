@@ -1,5 +1,6 @@
 // Приборы: боковая панель на компьютере и плашки поверх карты на телефоне
-import { G0, SHIP, FLAK, D2R, TEAM } from '../config.js';
+import { G0, SHIP, FLAK, D2R } from '../config.js';
+import { t } from '../i18n.js';
 import { clamp, dist } from '../lib/math.js';
 import { fmtDist, fmtClock } from '../lib/format.js';
 import { S, reactionDelay, nearestThreat, gravAt, mainBody, impactIn, myShip, viewShip, teamCount } from '../sim/index.js';
@@ -35,24 +36,24 @@ export function updateHud() {
   const gv = gravAt(me.pos[0], me.pos[1]), gg = Math.hypot(gv[0], gv[1]) / G0, mb = mainBody(me.pos);
 
   const fuelCls = me.fuel < SHIP.dv * 0.2 ? 'warn' : '';
-  el.vFuel.textContent = Math.round(me.fuel) + ' м/с'; setBar('bFuel', me.fuel / SHIP.dv, fuelCls);
+  el.vFuel.textContent = Math.round(me.fuel) + ' ' + t('u.ms'); setBar('bFuel', me.fuel / SHIP.dv, fuelCls);
   el.vHp.textContent = Math.round(me.hp) + '%'; setBar('bHp', me.hp / 100, hpCls(me.hp));
   el.vG.textContent = me.accG.toFixed(1) + ' g'; setBar('bG', me.accG / SHIP.maxG, gCls(me.accG));
-  el.vCrew.textContent = st < 20 ? 'в норме' : st < 40 ? 'устают' : st < 70 ? 'приказы с задержкой' : 'на пределе';
+  el.vCrew.textContent = t(st < 20 ? 'hud.crew.ok' : st < 40 ? 'hud.crew.tired' : st < 70 ? 'hud.crew.slow' : 'hud.crew.limit');
   setBar('bCrew', st / 100, crewCls(st));
-  el.vDelay.textContent = reactionDelay(me).toFixed(1) + ' с';
-  el.vSpeed.textContent = (Math.hypot(me.vel[0], me.vel[1]) / 1000).toFixed(2) + ' км/с';
+  el.vDelay.textContent = reactionDelay(me).toFixed(1) + ' ' + t('u.s');
+  el.vSpeed.textContent = (Math.hypot(me.vel[0], me.vel[1]) / 1000).toFixed(2) + ' ' + t('u.kms');
   el.vGrav.textContent = gg.toFixed(2) + ' g';
   el.vBody.textContent = mb ? mb.b.name + ', ' + fmtDist(Math.max(0, mb.alt)) : '—';
   if (!dragging.thr) el.thr.value = me.issuedThrottle;
   el.vThr.textContent = me.issuedThrottle.toFixed(1) + ' g';
   el.vTorp.textContent = me.torps;
   el.vFlak.textContent = '●'.repeat(me.flak) + '○'.repeat(FLAK.charges - me.flak);
-  el.vFlak.title = me.flakTimer > 0 ? 'следующий заряд через ' + Math.ceil(me.flakTimer) + ' с' : '';
+  el.vFlak.title = me.flakTimer > 0 ? t('hud.flakNext', { s: Math.ceil(me.flakTimer) }) : '';
   el.vSpread.textContent = (me.spread / D2R).toFixed(1).replace('.0', '') + '°';
 
   el.vContact.textContent = contactText(me);
-  el.vTeams.textContent = S.ships.length > 2 ? [0, 1].map(t => TEAM.names[t] + ' ' + teamCount(t).join('/')).join(' · ') : '';
+  el.vTeams.textContent = S.ships.length > 2 ? [0, 1].map(k => t('team.' + k) + ' ' + teamCount(k).join('/')).join(' · ') : '';
   el.vThreat.textContent = threatText(viewShip());
   $('zhome').classList.toggle('on', !cam.follow);
 
@@ -67,7 +68,7 @@ export function updateHud() {
   el.vThr2.textContent = me.issuedThrottle.toFixed(1) + ' g';
 
   el.clock.textContent = 't ' + fmtClock(S.t) + (run.paused ? ', ' + pauseLabel() : ', ×' + (run.scale < 10 ? run.scale.toFixed(1) : Math.round(run.scale))) +
-    (net.role && run.started && S.mp ? ', пинг ' + Math.round(net.rtt) + ' мс' : '');
+    (net.role && run.started && S.mp ? ', ' + t('hud.ping', { ms: Math.round(net.rtt) }) : '');
   el.bPause.classList.toggle('on', run.paused); el.dPause.classList.toggle('on', run.paused);
 }
 
@@ -75,22 +76,21 @@ export function updateHud() {
 function contactText(me) {
   if (!me.alive) {
     const v = viewShip();
-    return v === me ? 'Ваш корабль уничтожен' : 'Ваш корабль уничтожен. Бой продолжается, камера на ' + v.name;
+    return v === me ? t('hud.dead') : t('hud.deadView', { name: v.name });
   }
   const e = S.ships[me.targetId], tr = e && S.tracks[me.id][e.id];
-  if (!tr || !e.alive) return 'Цели нет';
-  const d = (dist(me.pos, tr.pos) / 1000).toFixed(0), who = S.ships.length > 2 ? 'Цель ' + e.name + ': ' : '';
-  const txt = tr.exact ? 'контакт точный, ' + d + ' км, корпус ' + Math.round(e.hp) + '%'
-    : 'контакт потерян ' + Math.round(S.t - tr.seenT) + ' с назад, примерно ' + d + ' км';
+  if (!tr || !e.alive) return t('hud.noTarget');
+  const d = (dist(me.pos, tr.pos) / 1000).toFixed(0), who = S.ships.length > 2 ? t('hud.targetOf', { name: e.name }) : '';
+  const txt = tr.exact ? t('hud.contact', { d, hp: Math.round(e.hp) }) : t('hud.lost', { ago: S.t - tr.seenT, d });
   return who ? who + txt : txt[0].toUpperCase() + txt.slice(1);
 }
 
 // угрозы: столкновение с телом и вражеские торпеды; о новом столкновении ещё и всплывающее сообщение
 function threatText(me) {
   const imp = run.started && !S.over && me.alive ? impactIn(me, 120) : null;
-  if (imp && !impactWarned) say('Курс ведёт к столкновению с ' + imp.hit.name + ' через ' + Math.round(imp.hitT) + ' с');
+  if (imp && !impactWarned) say(t('hud.impactSay', { name: imp.hit.name, s: imp.hitT }));
   impactWarned = !!imp;
   const th = nearestThreat(me), n = S.torps.filter(t => t.team !== me.team).length;
-  return (imp ? 'Столкновение с ' + imp.hit.name + ' через ' + Math.round(imp.hitT) + ' с. ' : '') +
-    (n ? 'Торпед противника: ' + n + (th && th.ttg < 1e8 ? ', ближайшая через ' + Math.round(th.ttg) + ' с' : '') : 'Торпед противника нет');
+  return (imp ? t('hud.impact', { name: imp.hit.name, s: imp.hitT }) : '') +
+    (n ? t('hud.torps', { n }) + (th && th.ttg < 1e8 ? t('hud.torpsNext', { s: th.ttg }) : '') : t('hud.noTorps'));
 }

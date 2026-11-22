@@ -40,14 +40,14 @@ function applyOrder(s, o) {
     case 'flak': fireFlak(s, o.val); break;
     case 'flakAuto': {
       const a = autoAim(s);
-      if (a === null) sayTo(s.id, 'Нет торпед для упреждения');
+      if (a === null) sayTo(s.id, 'msg.noLead');
       else fireFlak(s, a);
       break;
     }
     case 'plume': doPlume(s); break;
     case 'flakShip': {
       const tr = targetTrack(s);
-      if (!tr) sayTo(s.id, 'Нет цели');
+      if (!tr) sayTo(s.id, 'msg.noTarget');
       else fireFlak(s, solveIntercept(s.pos, s.vel, tr.pos, tr.vel, FLAK.speed));
       break;
     }

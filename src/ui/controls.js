@@ -8,6 +8,7 @@ import { net, netSend } from '../net/multiplayer.js';
 import { $, el } from './dom.js';
 import { pointer, COARSE } from './pointer.js';
 import { say } from './toast.js';
+import { t } from '../i18n.js';
 
 const canIssue = () => run.started && !S.over && myShip().alive;
 
@@ -36,7 +37,7 @@ function nextTarget() {
   const i = list.findIndex(e => e.id === myShip().targetId);
   const e = list[(i + 1) % list.length];
   order('target', e.id);
-  say('Цель: ' + e.name);
+  say(t('msg.target', { name: e.name }));
 }
 
 // контакт противника под точкой экрана (x, y), если он ближе 22 пикселей
@@ -86,7 +87,7 @@ function togglePause() {
 
 function setAim(v) {
   pointer.aim = v; $('dAim').classList.toggle('on', v);
-  if (v) say('Коснитесь карты: куда выпустить облако');
+  if (v) say(t('msg.aim'));
 }
 
 // касание или клик по карте: по контакту противника — выбрать его целью, иначе курс туда, а в режиме прицела — облако
@@ -95,7 +96,7 @@ function tapAt(x, y) {
   const me = myShip(), w = screenToWorld(x, y), a = Math.atan2(w[1] - me.pos[1], w[0] - me.pos[0]);
   if (pointer.aim) { order('flak', a); setAim(false); return; }
   const e = contactAt(x, y);
-  if (e && e.id !== me.targetId) { order('target', e.id); say('Цель: ' + e.name); return; }
+  if (e && e.id !== me.targetId) { order('target', e.id); say(t('msg.target', { name: e.name })); return; }
   order('heading', a);
 }
 

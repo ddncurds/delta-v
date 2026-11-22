@@ -1,6 +1,7 @@
 // Снимки сетевой игры: хост шлёт каждому гостю то, что видит его корабль
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { SHIP } from '../src/config.js';
 import { S, newGame } from '../src/sim/index.js';
 import { fireFlak } from '../src/sim/weapons.js';
@@ -102,11 +103,12 @@ test('ползунок гостя не откатывается, пока хос
 test('конец боя доходит до гостя со своим итогом', () => {
   hostGame();
   S.over = true;
-  const m = wire(makeSnapshot(2, newPeerSync(), { ...opts, result: 'Победа: x' }));
+  const m = wire(makeSnapshot(2, newPeerSync(), { ...opts, result: ['res.win.team'] }));
   guestGame();
   applySnapshot(m, false);
   assert.equal(S.over, true);
-  assert.equal(S.result, 'Победа: x');
+  assert.equal(S.resultKey[0], 'res.win.team');
+  assert.equal(S.result, 'Победа: все корабли противника уничтожены', 'гость переводит итог на свой язык');
   assert.equal(S.ships[2].fuel, SHIP.dv);
 });
 

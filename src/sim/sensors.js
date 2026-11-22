@@ -59,10 +59,10 @@ export function updateTracks(dt) {
       if (!tr || !e.alive) continue;
       const vis = o.alive && (e.accG > 0.3 || dist(o.pos, e.pos) < DETECT);
       if (vis) {
-        if (!tr.exact && o.targetId === e.id) sayTo(o.id, 'Контакт: двигатель корабля ' + e.name);
+        if (!tr.exact && o.targetId === e.id) sayTo(o.id, 'msg.contact', { name: e.name });
         tr.pos = [e.pos[0], e.pos[1]]; tr.vel = [e.vel[0], e.vel[1]]; tr.seenT = S.t; tr.exact = true;
       } else {
-        if (tr.exact && o.alive && o.targetId === e.id) sayTo(o.id, 'Контакт потерян: ' + e.name + ' идёт по инерции');
+        if (tr.exact && o.alive && o.targetId === e.id) sayTo(o.id, 'msg.contactLost', { name: e.name });
         tr.exact = false;
         const g = gravAt(tr.pos[0], tr.pos[1]);
         tr.vel[0] += g[0] * dt; tr.vel[1] += g[1] * dt;

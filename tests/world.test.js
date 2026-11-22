@@ -1,6 +1,7 @@
 // Мир боя: гравитация, прогноз, столкновения, итог боя, бои с ИИ
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { DT } from '../src/config.js';
 import { dist } from '../src/lib/math.js';
 import { S, newGame, step, predictPath, resultFor, gravAt, surfaceG } from '../src/sim/index.js';

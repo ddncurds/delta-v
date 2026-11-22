@@ -26,8 +26,8 @@ test-net: ## тесты сетевого боя: снимки, лобби, хо�
 test-e2e: ## только сквозной сетевой бой: три копии игры в отдельных потоках
 	$(NODE) --test tests/mp-e2e.test.js
 
-test-ui: ## тесты интерфейса и сервера разработки
-	$(NODE) --test tests/ui.test.js tests/serve.test.js
+test-ui: ## тесты интерфейса, языков и сервера разработки
+	$(NODE) --test tests/ui.test.js tests/i18n-core.test.js tests/i18n-ui.test.js tests/serve.test.js
 
 check: ## проверить синтаксис всех модулей
 	@for f in $(JS); do $(NODE) --check $$f || exit 1; done; echo "синтаксис в порядке: $(words $(JS)) файлов"

@@ -3,7 +3,7 @@
 // Гость применяет снимок и между снимками продолжает движение по инерции
 import { G0, SHIP, FLAK, BODY, TEAM } from '../config.js';
 import { clamp, wrap } from '../lib/math.js';
-import { S, gravAt, bodyHit, fly, normalizeRoster, eyeOf } from '../sim/index.js';
+import { S, gravAt, bodyHit, fly, normalizeRoster, eyeOf, endBattle } from '../sim/index.js';
 
 // свой корабль гость получает целиком, остальные — только видимые снаружи поля
 const SHIP_FULL = ['pos', 'vel', 'heading', 'cmdHeading', 'cmdThrottle', 'issuedThrottle', 'issuedHeading', 'accG', 'fuel', 'stress',
@@ -16,6 +16,7 @@ const pick = (o, ks) => { const r = {}; for (const k of ks) r[k] = o[k]; return 
 export const newPeerSync = () => ({ fxId: 0, pelB: 0, hitSeq: 0 });
 
 // снимок для гостя, который управляет кораблём id; sync — его newPeerSync.
+// say — сообщения экипажу [ключ, параметры], result — итог боя ключом: гость переводит их на свой язык.
 // Обстановку гость видит глазами своего корабля, а после его гибели — глазами живого союзника
 export function makeSnapshot(id, sync, { scale, pauseReason, ack, say, result }) {
   const me = S.ships[id], eye = eyeOf(me), tr = S.tracks[eye.id];
@@ -61,7 +62,7 @@ export function applySnapshot(m, keepIssued) {
   for (const g of m.fl) for (const [i, x, y, vx, vy] of g.p) S.pellets.push({ owner: g.o, team: g.tm, age: g.age, b: g.b, i, dead: false, pos: [x, y], vel: [vx, vy] });
   if (m.pd.length) { const dead = new Set(m.pd.map(([b, i]) => b + ':' + i)); S.pellets = S.pellets.filter(p => !dead.has(p.b + ':' + p.i)); }
   S.t = m.t; S.stats = m.stats;
-  if (m.ov && !S.over) { S.over = true; S.result = m.res; }
+  if (m.ov && !S.over) endBattle(Array.isArray(m.res) ? [String(m.res[0]), m.res[1] || {}] : ['res.abort']);
 }
 
 // гость между снимками продолжает движение по инерции, без попаданий

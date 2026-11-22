@@ -6,6 +6,7 @@ import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip } fr
 import { run } from '../run.js';
 import { pointer, COARSE } from '../ui/pointer.js';
 import { C, FONT } from './theme.js';
+import { t as txt } from '../i18n.js';
 import { cam, camCenter, screenToWorld } from './camera.js';
 import { updateStars, drawStars } from './stars.js';
 import { drawBody } from './planets.js';
@@ -117,14 +118,14 @@ function drawPrediction(me) {
   for (let i = tick; i < P.length; i += tick) {
     const t = i * h, x = X(P[i][0]), y = Y(P[i][1]), lab = t === 30 || t % 60 === 0;
     ctx.beginPath(); ctx.arc(x, y, lab ? 2.5 : 1.5, 0, 7); ctx.fill();
-    if (lab) { ctx.textAlign = 'left'; ctx.fillText(t + ' с', x + 6, y - 8); }
+    if (lab) { ctx.textAlign = 'left'; ctx.fillText(txt('map.sec', { t }), x + 6, y - 8); }
   }
   ctx.globalAlpha = 1;
   if (pp.hit) {
     const e = P[P.length - 1], x = X(e[0]), y = Y(e[1]);
     ctx.strokeStyle = C.foe; ctx.lineWidth = 2; ctx.beginPath();
     ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6); ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6); ctx.stroke();
-    ctx.fillStyle = C.foe; ctx.textAlign = 'left'; ctx.fillText('столкновение через ' + Math.round(pp.hitT) + ' с', x + 10, y + 10);
+    ctx.fillStyle = C.foe; ctx.textAlign = 'left'; ctx.fillText(txt('map.collision', { s: pp.hitT }), x + 10, y + 10);
     return;
   }
   // самая низкая точка над поверхностью — по ней видно, как манёвр меняет орбиту
@@ -136,7 +137,7 @@ function drawPrediction(me) {
   if (lo && lo.i > 2 && lo.i < P.length - 2) {
     const x = X(P[lo.i][0]), y = Y(P[lo.i][1]);
     ctx.strokeStyle = C.warn; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.stroke();
-    ctx.fillStyle = C.warn; ctx.textAlign = 'left'; ctx.fillText('мин. высота ' + fmtDist(lo.alt) + ', ' + Math.round(lo.i * h) + ' с', x + 8, y + 10);
+    ctx.fillStyle = C.warn; ctx.textAlign = 'left'; ctx.fillText(txt('map.minAlt', { alt: lo.alt, s: lo.i * h }), x + 8, y + 10);
   }
 }
 
@@ -175,7 +176,7 @@ function drawTorps() {
     if (t.team !== view.team) {
       const g = timeToImpact(t, view);
       ctx.fillStyle = col; ctx.textAlign = 'left';
-      ctx.fillText((g ? Math.round(g) + ' с' : '—') + ', Δv ' + Math.round(t.fuel) + (t.heat > 5 ? ', нагрев ' + Math.min(99, Math.round(t.heat)) + '%' : ''), X(t.pos[0]) + 9, Y(t.pos[1]) - 9);
+      ctx.fillText(txt('map.torp', { eta: g ? txt('map.sec', { t: Math.round(g) }) : '—', dv: t.fuel }) + (t.heat > 5 ? txt('map.heat', { h: Math.min(99, Math.round(t.heat)) }) : ''), X(t.pos[0]) + 9, Y(t.pos[1]) - 9);
     }
   }
 }
@@ -238,13 +239,13 @@ function drawShips() {
     const x = X(s.pos[0]), y = Y(s.pos[1]);
     if (s.team === view.team) {
       drawShip(s, s === me ? C.me : C.ally);
-      if (s !== me) label(s.name + (s.ctrl === 'human' ? '' : ', ИИ'), C.ally, x, y);
+      if (s !== me) label(s.name + (s.ctrl === 'human' ? '' : txt('map.ai')), C.ally, x, y);
       continue;
     }
     const t = tr[s.id], isTarget = me.alive && s.id === me.targetId;
     if (t.exact) {
       drawShip(s, C.foe);
-      label((team ? s.name + ', ' : '') + 'корпус ' + Math.round(s.hp) + '%', C.foe, x, y);
+      label((team ? s.name + ', ' : '') + txt('map.hull', { hp: Math.round(s.hp) }), C.foe, x, y);
       if (isTarget) targetMark(x, y);
       continue;
     }
@@ -254,7 +255,7 @@ function drawShips() {
     ctx.beginPath(); ctx.arc(tx, ty, Math.max(8, ur / cam.mpp), 0, 7); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
     ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx + 8, ty); ctx.lineTo(tx, ty + 8); ctx.lineTo(tx - 8, ty); ctx.closePath(); ctx.stroke();
-    label((team ? s.name + ': ' : '') + 'последняя позиция, ' + Math.round(age) + ' с назад', C.foe, tx, ty - 2);
+    label((team ? s.name + ': ' : '') + txt('map.lastPos', { ago: age }), C.foe, tx, ty - 2);
     if (isTarget) targetMark(tx, ty);
   }
 }
@@ -293,16 +294,16 @@ function drawEdgeMarkers() {
     const bx = X(b.pos[0]), by = Y(b.pos[1]), br = b.r / cam.mpp;
     if (bx + br < 0 || bx - br > cam.w || by + br < 0 || by - br > cam.h) edgeMarker(b.pos, C.ink2, b.name + ', ' + fmtDist(Math.max(0, dist(view.pos, b.pos) - b.r)));
   }
-  if (me.alive) edgeMarker(me.pos, C.me, 'вы', true);
+  if (me.alive) edgeMarker(me.pos, C.me, txt('map.you'), true);
   for (const s of S.ships) {
     if (!s.alive || s === me) continue;
     if (s.team === view.team) { edgeMarker(s.pos, C.ally, s.name); continue; }
     const t = tr[s.id], p = t.exact ? s.pos : t.pos, isTarget = s.id === me.targetId;
-    edgeMarker(p, C.foe, (isTarget ? 'цель' : s.name) + (t.exact ? ', ' : ' (устар.), ') + fmtDist(dist(view.pos, p)), isTarget);
+    edgeMarker(p, C.foe, (isTarget ? txt('map.target') : s.name) + (t.exact ? ', ' : txt('map.stale') + ', ') + fmtDist(dist(view.pos, p)), isTarget);
   }
   for (const t of S.torps) {
-    if (t.team !== view.team) { const g = timeToImpact(t, view); edgeMarker(t.pos, C.foe, 'торпеда' + (g ? ', ' + Math.round(g) + ' с' : '')); }
-    else if (t.owner === me.id) edgeMarker(t.pos, C.me, 'своя торпеда');
+    if (t.team !== view.team) { const g = timeToImpact(t, view); edgeMarker(t.pos, C.foe, txt('map.torpedo') + (g ? ', ' + txt('map.sec', { t: Math.round(g) }) : '')); }
+    else if (t.owner === me.id) edgeMarker(t.pos, C.me, txt('map.ownTorp'));
   }
 }
 
@@ -310,15 +311,15 @@ function drawCaptions() {
   const W = cam.w, H = cam.h, me = view, e = S.ships[me.targetId], tr = e && S.tracks[me.id][e.id];
   if (!cam.follow) {
     ctx.textAlign = 'center'; ctx.fillStyle = C.warn; ctx.font = '500 13px ' + FONT;
-    ctx.fillText('Камера свободна: нажмите ⌖ или C, чтобы вернуться к кораблю', W / 2, H - 68);
+    ctx.fillText(txt('map.freeCam'), W / 2, H - 68);
   }
   const sp = Math.hypot(me.vel[0], me.vel[1]) / 1000;
   ctx.textAlign = 'center'; ctx.fillStyle = C.ink; ctx.font = '600 24px ' + FONT;
-  ctx.fillText(sp.toFixed(2) + ' км/с', W / 2, H - 40);
+  ctx.fillText(sp.toFixed(2) + ' ' + txt('u.kms'), W / 2, H - 40);
   if (e && e.alive && tr) {
     const rx = tr.pos[0] - me.pos[0], ry = tr.pos[1] - me.pos[1], rr = Math.hypot(rx, ry) || 1;
     const cl = -(rx * (tr.vel[0] - me.vel[0]) + ry * (tr.vel[1] - me.vel[1])) / rr / 1000;
     ctx.font = '500 13px ' + FONT; ctx.fillStyle = C.ink2;
-    ctx.fillText((cl >= 0 ? 'сближение с целью ' : 'расхождение с целью ') + Math.abs(cl).toFixed(2) + ' км/с', W / 2, H - 18);
+    ctx.fillText(txt(cl >= 0 ? 'map.closing' : 'map.opening', { v: Math.abs(cl).toFixed(2) }), W / 2, H - 18);
   }
 }

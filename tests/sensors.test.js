@@ -1,6 +1,7 @@
 // Обнаружение противника и угрозы
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { DETECT } from '../src/config.js';
 import { dist } from '../src/lib/math.js';
 import { S, nearestThreat, timeToImpact } from '../src/sim/index.js';

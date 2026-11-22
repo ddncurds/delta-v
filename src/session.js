@@ -1,13 +1,13 @@
 // Начало и конец боя: оверлей со стартовым экраном, составом боя и итогом
 import { S, newGame, myShip, teamCount } from './sim/index.js';
-import { TEAM } from './config.js';
+import { t } from './i18n.js';
 import { fmtClock } from './lib/format.js';
 import { run } from './run.js';
 import { cam } from './render/camera.js';
 import { resetStars } from './render/stars.js';
 import { $, el } from './ui/dom.js';
 import { say, hideToast } from './ui/toast.js';
-import { net, lobbyClose, lobbyOpen, mpRender, hostStart } from './net/multiplayer.js';
+import { net, lobbyClose, lobbyOpen, mpRender, mpStatus, hostStart } from './net/multiplayer.js';
 import { slotsToRoster, rosterValid } from './roster.js';
 
 // S уже подготовлен (newGame или снимок хоста): переключаем интерфейс в бой
@@ -24,26 +24,36 @@ function startGame() {
   if (!rosterValid(net.slots)) return;
   lobbyClose();
   const roster = slotsToRoster(net.slots), mine = roster.find(r => r.owner === 'local');
-  if (mine) mine.name = $('mpNick').value.trim().slice(0, 16) || 'Вы';
+  if (mine) mine.name = $('mpNick').value.trim().slice(0, 16) || t('you');
   newGame({ roster });
   const [a, b] = [teamCount(0)[1], teamCount(1)[1]];
-  beginBattle(a + b === 2 ? 'Бой начался. Оба корабля уже в движении. Обе стороны видят друг друга в последний раз.'
-    : 'Бой ' + a + ' на ' + b + ' начался. Цель — ' + S.ships[myShip().targetId].name + ', сменить: Q.');
+  beginBattle(a + b === 2 ? t('start.duel') : t('start.team', { a, b, name: S.ships[myShip().targetId].name }));
+}
+
+// заголовок итога по ключу результата
+function resultTitle(key) {
+  const k = key?.[0] || '';
+  return t(k.startsWith('res.win') ? 'res.t.win' : k === 'res.draw' ? 'res.t.draw' : k === 'res.abort' ? 'res.t.abort' : 'res.t.loss');
+}
+
+// текст оверлея на текущем языке: до первого боя — вступление, после — итог
+export function renderOverlay() {
+  if (!S.reported || !S.resultKey) { $('ovTitle').textContent = t('title.short'); $('ovText').textContent = t('intro'); return; }
+  const [mm, ss] = fmtClock(S.t).split(':').map(Number);
+  const me = myShip(), st = S.stats[S.myId], [a0, n0] = teamCount(0), [a1, n1] = teamCount(1);
+  const teams = S.ships.length > 2 ? t('res.teams', { blue: t('team.0.l'), red: t('team.1.l'), a0, n0, a1, n1 }) : '';
+  $('ovTitle').textContent = resultTitle(S.resultKey);
+  $('ovText').textContent = t('res.summary', { result: t(S.resultKey[0], S.resultKey[1]), mm, ss, teams,
+    dv: Math.round(me.fuel), launched: st.launched, kills: st.kills });
 }
 
 function showResult() {
-  const r = S.result, won = r.startsWith('Победа');
-  $('ovTitle').textContent = won ? 'Победа' : r.startsWith('Взаимное') ? 'Ничья' : r.startsWith('Бой прерван') ? 'Бой прерван' : 'Поражение';
-  const [mm, ss] = fmtClock(S.t).split(':').map(Number);
-  const me = myShip(), st = S.stats[S.myId];
-  const teams = S.ships.length > 2 ? ' Уцелело: ' + [0, 1].map(t => TEAM.names[t].toLowerCase() + ' ' + teamCount(t).join(' из ')).join(', ') + '.' : '';
-  $('ovText').textContent = r + '. Бой длился ' + mm + ' мин ' + ss + ' с.' + teams + ' Осталось Δv: ' + Math.round(me.fuel) +
-    ' м/с. Пущено торпед: ' + st.launched + ', сбито торпед противника: ' + st.kills + '.';
+  renderOverlay();
   $('ovKeys').hidden = true; $('ovTouch').hidden = true;
   el.overlay.hidden = false;
   mpRender();
   if (!net.role) lobbyOpen();
-  else if (net.role === 'guest') $('mpStatus').textContent = 'Новый бой начнёт ' + net.hostNick + '.';
+  else if (net.role === 'guest') mpStatus('guest.waitNew', { host: net.hostNick });
 }
 
 // бой закончился: итог показываем с небольшой паузой, чтобы успел отыграть взрыв

@@ -1,6 +1,7 @@
 // Топливо (запас Δv) корабля
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { DT, G0, SHIP, FLAK } from '../src/config.js';
 import { dist } from '../src/lib/math.js';
 import { S, step, predictPath } from '../src/sim/index.js';

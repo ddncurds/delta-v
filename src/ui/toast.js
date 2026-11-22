@@ -9,4 +9,4 @@ export function say(txt) {
   clearTimeout(timer); timer = setTimeout(() => box.classList.remove('show'), 3500);
 }
 
-export function hideToast() { box.classList.remove('show'); }
+export function hideToast() { box.classList.remove('show'); box.textContent = ''; }

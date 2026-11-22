@@ -1,6 +1,7 @@
 // Движение корабля, приказы и экипаж
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { SHIP, D2R, G0 } from '../src/config.js';
 import { S, issue, reactionDelay } from '../src/sim/index.js';
 import { startBurn } from '../src/sim/ship.js';

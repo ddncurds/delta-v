@@ -1,6 +1,7 @@
 // Оружие: торпеды, облако шариков, выхлоп
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './lang-ru.js';
 import { DT, SHIP, TORP, FLAK, D2R } from '../src/config.js';
 import { S, step, issue } from '../src/sim/index.js';
 import { fireFlak, launchTorp, plumeFactor } from '../src/sim/weapons.js';

@@ -3,6 +3,7 @@ import { D2R, TEAM } from '../config.js';
 import { dist } from '../lib/math.js';
 import { S, setState, sayTo, teamAlive, enemiesOf } from './state.js';
 import { makeBodies } from './bodies.js';
+import { t, tm } from '../i18n.js';
 import { newShip, stepShip } from './ship.js';
 import { initTracks, updateTracks, pickTarget } from './sensors.js';
 import { stepTorp, stepPellets, stepPlumes } from './weapons.js';
@@ -11,7 +12,10 @@ import { predictPath } from './predict.js';
 import { newAi, aiStep } from './ai.js';
 
 // состав по умолчанию — дуэль: игрок против ИИ
-export const DUEL = [{ team: 0, ctrl: 'human', name: 'Вы' }, { team: 1, ctrl: 'ai' }];
+export const DUEL = [{ team: 0, ctrl: 'human' }, { team: 1, ctrl: 'ai' }];
+
+// позывной ИИ по команде и номеру места
+export const callsign = (team, i) => t('cs.' + team).split(',')[i % TEAM.max];
 
 // состав боя: корабли команды 0, затем команды 1; не больше TEAM.max в команде, в каждой хотя бы один.
 // Безымянным кораблям — позывной по номеру в команде
@@ -19,9 +23,10 @@ export function normalizeRoster(list) {
   const out = [];
   for (const team of [0, 1]) {
     const mine = list.filter(r => r && r.team === team).slice(0, TEAM.max);
-    if (!mine.length) throw new Error('в команде ' + TEAM.names[team] + ' нет кораблей');
+    if (!mine.length) throw new Error(t('err.noShips', { team: t('team.' + team) }));
+    // безымянный корабль человека — «Вы», ИИ — позывной
     mine.forEach((r, i) => out.push({ team, ctrl: r.ctrl === 'human' ? 'human' : 'ai',
-      name: String(r.name || TEAM.callsigns[team][i]).slice(0, 16), owner: r.owner ? String(r.owner) : '' }));
+      name: String(r.name || (r.ctrl === 'human' ? t('you') : callsign(team, i))).slice(0, 16), owner: r.owner ? String(r.owner) : '' }));
   }
   return out.map((r, id) => ({ ...r, id }));
 }
@@ -58,7 +63,7 @@ function placeShips(roster, opts) {
     return s;
   });
   const myId = opts.myId ?? Math.max(0, ships.findIndex(s => s.ctrl === 'human'));
-  setState({ t: 0, over: false, result: '', reported: false, mp: !!opts.mp, forfeit: false, abort: '', nextId: 1,
+  setState({ t: 0, over: false, result: '', resultKey: null, reported: false, mp: !!opts.mp, forfeit: false, abort: '', nextId: 1,
     hitLog: [], hitSeq: 0, bodies: [], ships, myId, torps: [], pellets: [], fx: [], tracks: [],
     lastHit: ships.map(() => -9), stats: ships.map(() => ({ launched: 0, kills: 0 })) });
 }
@@ -92,35 +97,35 @@ export function step(dt) {
   for (const s of S.ships) {
     if (!s.alive || S.ships[s.targetId]?.alive) continue;
     s.targetId = pickTarget(s);
-    if (s.targetId >= 0) sayTo(s.id, 'Цель уничтожена. Новая цель: ' + S.ships[s.targetId].name);
+    if (s.targetId >= 0) sayTo(s.id, 'msg.newTarget', { name: S.ships[s.targetId].name });
   }
-  if (!teamAlive(0) || !teamAlive(1)) { S.over = true; S.result = resultFor(S.myId); }
+  if (!teamAlive(0) || !teamAlive(1)) endBattle();
 }
 
-// причина гибели: [текст для победителя, текст для проигравшего]
-const DEATH_TEXT = {
-  crew: ['экипаж противника не выдержал перегрузки', 'экипаж не выдержал перегрузки'],
-  flak: ['корабль противника разрушен облаком шариков', 'корпус разрушен облаком шариков'],
-  plume: ['корабль противника расплавлен выхлопом', 'корабль расплавлен выхлопом противника'],
-  frag: ['корабль противника добит осколками торпеды', 'корпус разрушен осколками торпеды'],
-  crash: ['корабль противника разбился о поверхность', 'корабль разбился о поверхность'],
-  torp: ['корабль противника уничтожен торпедой', 'корабль уничтожен торпедой'],
-};
+// бой окончен: итог своего корабля — ключом (для сети и смены языка) и текстом на текущем языке
+export function endBattle(key = resultOf(S.myId)) {
+  S.over = true; S.resultKey = key; S.result = tm(key);
+}
 
-// итог боя глазами корабля id. В дуэли — причина гибели, в командном бою — чья команда уцелела
-export function resultFor(id) {
+const DEATHS = ['crew', 'flak', 'plume', 'frag', 'crash', 'torp'];
+const why = s => DEATHS.includes(s.deathBy) ? s.deathBy : 'torp';
+
+// итог боя глазами корабля id — ключ словаря и параметры. В дуэли — причина гибели, в командном бою — чья команда уцелела
+export function resultOf(id) {
   const s = S.ships[id];
-  if (S.abort) return S.abort;
-  if (S.forfeit === id) return 'Поражение: вы покинули бой';
+  if (S.abort) return ['res.abort'];
+  if (S.forfeit === id) return ['res.forfeit'];
   const mine = teamAlive(s.team), theirs = teamAlive(1 - s.team);
-  if (!mine && !theirs) return 'Взаимное уничтожение';
+  if (!mine && !theirs) return ['res.draw'];
   if (S.ships.length === 2) {
-    const e = enemiesOf(s)[0];
-    if (!theirs) return 'Победа: ' + (DEATH_TEXT[e.deathBy] || DEATH_TEXT.torp)[0];
-    if (!mine) return 'Поражение: ' + (DEATH_TEXT[s.deathBy] || DEATH_TEXT.torp)[1];
-    return '';
+    if (!theirs) return ['res.win.' + why(enemiesOf(s)[0])];
+    if (!mine) return ['res.loss.' + why(s)];
+    return null;
   }
-  if (!theirs) return 'Победа: все корабли противника уничтожены' + (s.alive ? '' : ', ваш корабль погиб, но команда выстояла');
-  if (!mine) return 'Поражение: ваша команда уничтожена';
-  return '';
+  if (!theirs) return [s.alive ? 'res.win.team' : 'res.win.teamDead'];
+  if (!mine) return ['res.loss.team'];
+  return null;
 }
+
+// итог текстом на текущем языке
+export const resultFor = id => tm(resultOf(id));

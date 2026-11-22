@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Дельта‑v: тактический бой</title>
+<title>Delta‑v: tactical combat</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
@@ -12,167 +12,168 @@
 <body>
 <div class="app">
   <main class="stage" id="stage">
-    <canvas id="c" aria-label="Тактическая карта боя"></canvas>
+    <canvas id="c" aria-label="Tactical battle map" data-i18n-attr="aria-label:map.aria"></canvas>
     <div class="toast" id="toast" role="status"></div>
     <div class="mini" id="mini">
       <div class="chips">
-        <div class="chip"><span>Δv, м/с</span><b id="mFuel">9000</b><div class="bar" id="mbFuel"><i></i></div></div>
-        <div class="chip"><span>Гравитация, g</span><b id="mGrav">0.00</b><div class="bar" id="mbGrav"><i></i></div></div>
-        <div class="chip"><span>Корпус</span><b id="mHp">100%</b><div class="bar" id="mbHp"><i></i></div></div>
-        <div class="chip"><span>Перегрузка, g</span><b id="mG">0.0</b><div class="bar" id="mbG"><i></i></div></div>
-        <div class="chip"><span>Экипаж</span><b id="mCrew">0%</b><div class="bar" id="mbCrew"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.dv">Δv, m/s</span><b id="mFuel">9000</b><div class="bar" id="mbFuel"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.grav">Gravity, g</span><b id="mGrav">0.00</b><div class="bar" id="mbGrav"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.hull">Hull</span><b id="mHp">100%</b><div class="bar" id="mbHp"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.g">G-load, g</span><b id="mG">0.0</b><div class="bar" id="mbG"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.crew">Crew</span><b id="mCrew">0%</b><div class="bar" id="mbCrew"><i></i></div></div>
       </div>
       <div class="mtext" id="mContact"></div>
       <div class="mtext" id="mThreat"></div>
     </div>
     <div class="clock" id="clock">t 00:00</div>
     <div class="zoom">
-      <button id="zin" aria-label="Приблизить">+</button>
-      <button id="zout" aria-label="Отдалить">−</button>
-      <button id="zship" aria-label="Вид на корабль" title="Вид на корабль (Z)">◎</button>
-      <button id="zhome" aria-label="Камера к кораблю" title="Камера к кораблю (C)">⌖</button>
+      <button id="zin" aria-label="Zoom in" data-i18n-attr="aria-label:zoom.in">+</button>
+      <button id="zout" aria-label="Zoom out" data-i18n-attr="aria-label:zoom.out">−</button>
+      <button id="zship" aria-label="Ship close-up (Z)" title="Ship close-up (Z)" data-i18n-attr="aria-label:zoom.ship;title:zoom.ship">◎</button>
+      <button id="zhome" aria-label="Camera to ship (C)" title="Camera to ship (C)" data-i18n-attr="aria-label:zoom.home;title:zoom.home">⌖</button>
     </div>
     <div class="overlay" id="overlay">
       <div class="card">
-        <h2 id="ovTitle">Дельта‑v</h2>
-        <p id="ovText">Бой кораблей в пустоте: дуэль или команды до 5 на 5. Топливо — это Δv: пока двигатель работает, запас тает, а каждое ускорение бьёт по здоровью экипажа. Противника не видно, пока он не включит двигатель или не подойдёт близко; вас тоже. Каждый корабль видит сам: союзника вы видите, но его контакты — нет. Торпеда уничтожает корабль с одного попадания, облако шариков — за 2–3 залпа с близкой дистанции. Выхлоп двигателя плавит всё, что попало в факел за кормой. Корабли стартуют уже в движении, каждая команда своим строем. Рядом планета и луны: их притяжение искривляет траектории, вокруг них можно развернуться или поправить орбиту, не перегружая экипаж, но удар о поверхность смертелен. Пунктир показывает путь с учётом гравитации. Уничтожьте противника и сохраните экипаж.</p>
+        <div class="langs" role="group" aria-label="Language" data-i18n-attr="aria-label:lang.label"><button data-lang="en">English</button><button data-lang="ru">Русский</button></div>
+        <h2 id="ovTitle">Delta‑v</h2>
+        <p id="ovText">A battle of ships in the void: a duel or teams up to 5 on 5.</p>
         <dl class="keys" id="ovKeys">
-          <dt>Клик по карте</dt><dd>задать курс</dd>
-          <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>тяга больше или меньше</dd>
-          <dt><kbd>X</kbd> <kbd>B</kbd></dt><dd>заглушить двигатель; курс против скорости</dd>
-          <dt><kbd>E</kbd> <kbd>R</kbd></dt><dd>уклониться от ближайшей торпеды; развернуть двигатель на неё и плавить выхлопом</dd>
-          <dt><kbd>T</kbd> <kbd>Q</kbd></dt><dd>пустить торпеду в цель; сменить цель (или клик по контакту противника)</dd>
-          <dt><kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd></dt><dd>облако шариков: по курсору мыши; на торпеду с упреждением; по кораблю противника</dd>
-          <dt><kbd>1</kbd>–<kbd>4</kbd> <kbd>P</kbd></dt><dd>скорость времени; пауза</dd>
-          <dt><kbd>Z</kbd> <kbd>C</kbd></dt><dd>вид на корабль вблизи; вернуть камеру к кораблю. Перетаскивание мышью двигает карту, колесо меняет масштаб</dd>
+          <dt data-i18n="keys.click">Click on map</dt><dd data-i18n="keys.click.dd">set heading</dd>
+          <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd data-i18n="keys.ws">more or less thrust</dd>
+          <dt><kbd>X</kbd> <kbd>B</kbd></dt><dd data-i18n="keys.xb">cut the engine; heading against velocity</dd>
+          <dt><kbd>E</kbd> <kbd>R</kbd></dt><dd data-i18n="keys.er">dodge the nearest torpedo; turn the engine on it and melt it with exhaust</dd>
+          <dt><kbd>T</kbd> <kbd>Q</kbd></dt><dd data-i18n="keys.tq">launch a torpedo at the target; switch target (or click an enemy contact)</dd>
+          <dt><kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd></dt><dd data-i18n="keys.fgh">pellet cloud: at the mouse cursor; at a torpedo with lead; at the target ship</dd>
+          <dt><kbd>1</kbd>–<kbd>4</kbd> <kbd>P</kbd></dt><dd data-i18n="keys.num">time speed; pause</dd>
+          <dt><kbd>Z</kbd> <kbd>C</kbd></dt><dd data-i18n="keys.zc">ship close-up; camera back to ship. Drag to pan the map, mouse wheel to zoom</dd>
         </dl>
         <ul class="touchhelp" id="ovTouch">
-          <li>Касание карты задаёт курс; перетаскивание двигает карту, ⌖ возвращает камеру к кораблю.</li>
-          <li>Два пальца меняют масштаб; кнопка ◎ показывает корабль вблизи.</li>
-          <li>Ползунок «Тяга» задаёт ускорение в g.</li>
-          <li>«Прицел облака»: нажмите кнопку, затем коснитесь карты в сторону цели.</li>
-          <li>«Уклон» уходит от торпеды, «Выхлоп» плавит её факелом. «Цель» или касание контакта противника меняют цель. «Данные» открывают полную панель.</li>
+          <li data-i18n="touch.1">Tap the map to set heading; drag to pan, ⌖ returns the camera to the ship.</li>
+          <li data-i18n="touch.2">Two fingers zoom; the ◎ button shows the ship close up.</li>
+          <li data-i18n="touch.3">The “Thrust” slider sets acceleration in g.</li>
+          <li data-i18n="touch.4">“Aim cloud”: press the button, then tap the map towards the target.</li>
+          <li data-i18n="touch.5">“Dodge” evades a torpedo, “Exhaust” melts it with the plume. “Target” or tapping an enemy contact switches target. “Data” opens the full panel.</li>
         </ul>
-        <section class="roster" aria-label="Состав боя">
-          <h3>Состав боя <span class="small" id="rosterSize">1 на 1</span></h3>
+        <section class="roster" aria-label="Battle roster" data-i18n-attr="aria-label:roster.title">
+          <h3><span data-i18n="roster.title">Battle roster</span> <span class="small" id="rosterSize">1 vs 1</span></h3>
           <div class="rteams" id="roster"></div>
         </section>
-        <button class="primary" id="ovBtn">Начать бой</button>
-        <section class="mp" id="mp" aria-label="Сетевой бой">
-          <h3>Сетевой бой</h3>
-          <div class="mprow" id="mpTokRow" hidden><input id="mpToken" placeholder="Токен flespi" autocomplete="off" spellcheck="false" aria-label="Токен flespi"></div>
+        <button class="primary" id="ovBtn">Start battle</button>
+        <section class="mp" id="mp" aria-label="Online battle" data-i18n-attr="aria-label:mp.title">
+          <h3 data-i18n="mp.title">Online battle</h3>
+          <div class="mprow" id="mpTokRow" hidden><input id="mpToken" placeholder="flespi token" autocomplete="off" spellcheck="false" aria-label="flespi token" data-i18n-attr="placeholder:mp.token;aria-label:mp.token"></div>
           <div id="mpMenu" class="mpmenu">
-            <div class="mprow"><input id="mpNick" placeholder="Позывной" maxlength="16" aria-label="Позывной"><button id="mpHost">Создать бой</button></div>
-            <div class="mprow"><input id="mpCode" placeholder="Код" maxlength="4" autocomplete="off" spellcheck="false" aria-label="Код комнаты"><button id="mpJoin">Войти по коду</button></div>
+            <div class="mprow"><input id="mpNick" placeholder="Callsign" maxlength="16" aria-label="Callsign" data-i18n-attr="placeholder:mp.nick;aria-label:mp.nick"><button id="mpHost" data-i18n="mp.host">Create battle</button></div>
+            <div class="mprow"><input id="mpCode" placeholder="Code" maxlength="4" autocomplete="off" spellcheck="false" aria-label="Room code" data-i18n-attr="placeholder:mp.code;aria-label:mp.codeAria"><button id="mpJoin" data-i18n="mp.join">Join by code</button></div>
             <div id="mpRooms" class="mprooms"></div>
           </div>
           <div class="small" id="mpStatus" role="status"></div>
           <div class="mprow">
-            <button id="mpLink" hidden>Скопировать ссылку</button>
-            <button id="mpLeave" hidden>Выйти из сетевой игры</button>
+            <button id="mpLink" hidden data-i18n="mp.link">Copy link</button>
+            <button id="mpLeave" hidden data-i18n="mp.leave">Leave online game</button>
           </div>
         </section>
       </div>
     </div>
   </main>
 
-  <section class="dock" id="dock" aria-label="Управление">
-    <div class="thrrow"><span>Тяга</span><input type="range" id="thr2" min="0" max="8" step="0.5" value="0" aria-label="Тяга, g"><b id="vThr2">0.0 g</b></div>
+  <section class="dock" id="dock" aria-label="Controls" data-i18n-attr="aria-label:dock.aria">
+    <div class="thrrow"><span data-i18n="dock.thr">Thrust</span><input type="range" id="thr2" min="0" max="8" step="0.5" value="0" aria-label="Thrust, g" data-i18n-attr="aria-label:thr.aria"><b id="vThr2">0.0 g</b></div>
     <div class="grid5">
-      <button id="dTarget">Цель</button>
-      <button id="dDodge" class="danger">Уклон</button>
-      <button id="dPlume" class="danger">Выхлоп</button>
-      <button id="dTorp" class="primary">Торпеда</button>
-      <button id="dRetro">Тормоз</button>
+      <button id="dTarget" data-i18n="dock.target">Target</button>
+      <button id="dDodge" class="danger" data-i18n="dock.dodge">Dodge</button>
+      <button id="dPlume" class="danger" data-i18n="dock.plume">Exhaust</button>
+      <button id="dTorp" class="primary" data-i18n="dock.torp">Torpedo</button>
+      <button id="dRetro" data-i18n="dock.retro">Brake</button>
     </div>
     <div class="grid4">
-      <button id="dFlakAuto">Облако на торпеду</button>
-      <button id="dFlakShip">Облако на корабль</button>
-      <button id="dAim">Прицел облака</button>
-      <button id="dCut">Стоп тяга</button>
+      <button id="dFlakAuto" data-i18n="dock.flakAuto">Cloud at torpedo</button>
+      <button id="dFlakShip" data-i18n="dock.flakShip">Cloud at ship</button>
+      <button id="dAim" data-i18n="dock.aim">Aim cloud</button>
+      <button id="dCut" data-i18n="dock.cut">Stop thrust</button>
     </div>
     <div class="times6">
-      <button id="dPause" aria-label="Пауза">II</button>
+      <button id="dPause" aria-label="Pause" data-i18n-attr="aria-label:pause">II</button>
       <button data-speed="1">×1</button>
       <button data-speed="3">×3</button>
       <button data-speed="10">×10</button>
       <button data-speed="30">×30</button>
-      <button id="dSheet">Данные</button>
+      <button id="dSheet" data-i18n="dock.sheet">Data</button>
     </div>
   </section>
 
   <aside class="panel">
-    <button class="sheetbar" id="sheetClose">Закрыть панель</button>
-    <h1>Дельта‑v</h1>
+    <button class="sheetbar" id="sheetClose" data-i18n="panel.close">Close panel</button>
+    <div class="phead"><h1 data-i18n="title.short">Delta‑v</h1><div class="langs" role="group" aria-label="Language" data-i18n-attr="aria-label:lang.label"><button data-lang="en">EN</button><button data-lang="ru">RU</button></div></div>
 
     <section class="sec">
-      <h2>Корабль</h2>
-      <div class="row"><span>Топливо</span><b id="vFuel">9000 м/с</b></div>
+      <h2 data-i18n="sec.ship">Ship</h2>
+      <div class="row"><span data-i18n="row.fuel">Fuel</span><b id="vFuel">9000 m/s</b></div>
       <div class="bar" id="bFuel"><i></i></div>
-      <div class="row"><span>Корпус</span><b id="vHp">100%</b></div>
+      <div class="row"><span data-i18n="row.hull">Hull</span><b id="vHp">100%</b></div>
       <div class="bar" id="bHp"><i></i></div>
-      <div class="row"><span>Перегрузка</span><b id="vG">0.0 g</b></div>
+      <div class="row"><span data-i18n="row.g">G-load</span><b id="vG">0.0 g</b></div>
       <div class="bar" id="bG"><i></i></div>
-      <div class="row"><span>Нагрузка экипажа</span><b id="vCrew">в норме</b></div>
+      <div class="row"><span data-i18n="row.crew">Crew strain</span><b id="vCrew">normal</b></div>
       <div class="bar" id="bCrew"><i></i></div>
-      <div class="row"><span>Задержка приказов</span><b id="vDelay">0.0 с</b></div>
-      <div class="row"><span>Скорость</span><b id="vSpeed">0.00 км/с</b></div>
-      <div class="row"><span>Гравитация</span><b id="vGrav">0.00 g</b></div>
-      <div class="row"><span>Ближайшее тело</span><b id="vBody">—</b></div>
+      <div class="row"><span data-i18n="row.delay">Order delay</span><b id="vDelay">0.0 s</b></div>
+      <div class="row"><span data-i18n="row.speed">Speed</span><b id="vSpeed">0.00 km/s</b></div>
+      <div class="row"><span data-i18n="row.grav">Gravity</span><b id="vGrav">0.00 g</b></div>
+      <div class="row"><span data-i18n="row.body">Nearest body</span><b id="vBody">—</b></div>
     </section>
 
     <section class="sec">
-      <h2>Двигатель</h2>
-      <div class="row"><span>Тяга</span><b id="vThr">0 g</b></div>
-      <input type="range" id="thr" min="0" max="8" step="0.5" value="0" aria-label="Тяга, g">
+      <h2 data-i18n="sec.engine">Engine</h2>
+      <div class="row"><span data-i18n="row.thr">Thrust</span><b id="vThr">0 g</b></div>
+      <input type="range" id="thr" min="0" max="8" step="0.5" value="0" aria-label="Thrust, g" data-i18n-attr="aria-label:thr.aria">
       <div class="btns">
-        <button id="bCut">Заглушить <kbd>X</kbd></button>
-        <button id="bRetro">Тормозить <kbd>B</kbd></button>
+        <button id="bCut" data-i18n-html="btn.cut">Cut engine <kbd>X</kbd></button>
+        <button id="bRetro" data-i18n-html="btn.retro">Brake <kbd>B</kbd></button>
       </div>
       <div class="btns one">
-        <button id="bDodge" class="danger">Уклониться: 6 g, 5 с <kbd>E</kbd></button>
+        <button id="bDodge" class="danger" data-i18n-html="btn.dodge">Dodge: 6 g, 5 s <kbd>E</kbd></button>
       </div>
       <div class="btns one">
-        <button id="bPlume" class="danger">Выхлоп на цель: 7 g, 6 с <kbd>R</kbd></button>
-      </div>
-    </section>
-
-    <section class="sec">
-      <h2>Оружие</h2>
-      <div class="row"><span>Торпеды</span><b id="vTorp">10</b></div>
-      <div class="row"><span>Облако шариков</span><b id="vFlak" class="pips">●●●</b></div>
-      <div class="row"><span>Раскрытие облака</span><b id="vSpread">5°</b></div>
-      <input type="range" id="spread" min="2" max="10" step="0.5" value="5" aria-label="Угол раскрытия облака">
-      <div class="btns one">
-        <button id="bTorp" class="primary">Пуск торпеды <kbd>T</kbd></button>
-      </div>
-      <div class="btns">
-        <button id="bFlak">По курсору <kbd>F</kbd></button>
-        <button id="bFlakAuto">На торпеду <kbd>G</kbd></button>
-      </div>
-      <div class="btns">
-        <button id="bFlakShip">По цели <kbd>H</kbd></button>
-        <button id="bTarget">Сменить цель <kbd>Q</kbd></button>
+        <button id="bPlume" class="danger" data-i18n-html="btn.plume">Exhaust at target: 7 g, 6 s <kbd>R</kbd></button>
       </div>
     </section>
 
     <section class="sec">
-      <h2>Обстановка</h2>
+      <h2 data-i18n="sec.weapons">Weapons</h2>
+      <div class="row"><span data-i18n="row.torps">Torpedoes</span><b id="vTorp">10</b></div>
+      <div class="row"><span data-i18n="row.flak">Pellet cloud</span><b id="vFlak" class="pips">●●●</b></div>
+      <div class="row"><span data-i18n="row.spread">Cloud spread</span><b id="vSpread">5°</b></div>
+      <input type="range" id="spread" min="2" max="10" step="0.5" value="5" aria-label="Cloud spread angle" data-i18n-attr="aria-label:spread.aria">
+      <div class="btns one">
+        <button id="bTorp" class="primary" data-i18n-html="btn.torp">Launch torpedo <kbd>T</kbd></button>
+      </div>
+      <div class="btns">
+        <button id="bFlak" data-i18n-html="btn.flak">At cursor <kbd>F</kbd></button>
+        <button id="bFlakAuto" data-i18n-html="btn.flakAuto">At torpedo <kbd>G</kbd></button>
+      </div>
+      <div class="btns">
+        <button id="bFlakShip" data-i18n-html="btn.flakShip">At target <kbd>H</kbd></button>
+        <button id="bTarget" data-i18n-html="btn.target">Switch target <kbd>Q</kbd></button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2 data-i18n="sec.situation">Situation</h2>
       <div class="small" id="vTeams"></div>
-      <div class="small" id="vContact">Контакт: —</div>
-      <div class="small" id="vThreat">Торпед противника нет</div>
+      <div class="small" id="vContact">—</div>
+      <div class="small" id="vThreat">No enemy torpedoes</div>
     </section>
 
     <section class="sec">
-      <h2>Время</h2>
+      <h2 data-i18n="sec.time">Time</h2>
       <div class="times">
-        <button id="bPause" aria-label="Пауза">II</button>
+        <button id="bPause" aria-label="Pause" data-i18n-attr="aria-label:pause">II</button>
         <button data-speed="1">×1</button>
         <button data-speed="3">×3</button>
         <button data-speed="10">×10</button>
         <button data-speed="30">×30</button>
       </div>
-      <label class="chk"><input type="checkbox" id="autoSlow" checked> Замедлять при угрозе</label>
+      <label class="chk"><input type="checkbox" id="autoSlow" checked> <span data-i18n="autoSlow">Slow down on threat</span></label>
     </section>
   </aside>
 </div>
@@ -180,6 +181,7 @@
 <script>
 // ES-модули не загружаются со страницы, открытой как файл: подсказываем, как запустить
 if (location.protocol === 'file:') document.getElementById('ovText').textContent =
+  'The game is built from ES modules, and browsers do not load them from a page opened as a file. Start a local server in the game folder (make run or npm start) and open http://localhost:8080. — ' +
   'Игра собрана из ES-модулей, а браузер не загружает их со страницы, открытой как файл. Запустите в папке игры локальный сервер (make run или npm start) и откройте http://localhost:8080.';
 </script>
 <script type="module" src="src/main.js"></script>

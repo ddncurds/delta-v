@@ -6,17 +6,20 @@ import { run } from './run.js';
 import { resizeCamera, fitInitialZoom, easeZoom } from './render/camera.js';
 import { initScene, draw } from './render/scene.js';
 import { $ } from './ui/dom.js';
-import { say } from './ui/toast.js';
+import { say, hideToast } from './ui/toast.js';
+import { t } from './i18n.js';
 import { initHud, updateHud } from './ui/hud.js';
 import { initControls, setSpeed } from './ui/controls.js';
-import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl, netSpeedLimit, autoSlowShips, queueSay } from './net/multiplayer.js';
+import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl, netSpeedLimit, autoSlowShips, queueSay, mpRender, rerenderStatus, rerenderRooms } from './net/multiplayer.js';
 import { guestStep } from './net/snapshot.js';
-import { beginBattle, checkResult, initSession } from './session.js';
+import { beginBattle, checkResult, initSession, renderOverlay } from './session.js';
+import { initLang } from './ui/lang.js';
 
-// сообщения симуляции: своему кораблю — на экран, кораблям гостей — в очередь их снимков
-setSayHook((txt, id) => {
-  if (id === S.myId) say(txt);
-  else if (net.role === 'host' && S.mp) queueSay(id, txt);
+// сообщения симуляции (ключ словаря и параметры): своему кораблю — на экран на своём языке,
+// кораблям гостей — в очередь их снимков ключом, переведёт сам гость
+setSayHook((id, key, p) => {
+  if (id === S.myId) say(t(key, p));
+  else if (net.role === 'host' && S.mp) queueSay(id, key, p);
 });
 
 const canvas = $('c');
@@ -29,12 +32,16 @@ new ResizeObserver(resize).observe(canvas);
 resize();
 fitInitialZoom();
 
+// язык: страница переводится сразу, а при переключении — заново вместе с оверлеем, составом и статусом сети
+// (всплывающее сообщение на прежнем языке просто убираем)
+initLang(() => { renderOverlay(); mpRender(); rerenderStatus(); rerenderRooms(); updateHud(); hideToast(); });
 initScene(canvas);
 initHud();
 initControls(canvas);
 initMultiplayer({ beginBattle });
 initSession();
 newGame();
+renderOverlay();
 setSpeed(1);
 joinFromUrl();
 
