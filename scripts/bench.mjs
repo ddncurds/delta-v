@@ -29,7 +29,8 @@ const mulberry32 = a => () => {
 
 // пустой итог одной стороны
 const side = () => ({ win: 0, loss: 0, draw: 0, timeout: 0, launched: 0, downed: 0, melted: 0, hit: 0, frag: 0, miss: 0, crashed: 0, fizzled: 0,
-  flak: 0, plume: 0, dodge: 0, threats: 0, plumeAnswered: 0, fuel: 0, ships: 0, aiMs: 0, stepMs: 0 });
+  flak: 0, plume: 0, dodge: 0, threats: 0, plumeAnswered: 0, fuel: 0, ships: 0, torpsLeft: 0, stepMs: 0,
+  dead: { torp: 0, frag: 0, flak: 0, plume: 0, crash: 0, crew: 0 } });
 
 async function worker({ o, seeds }) {
   const { DT } = await import('../src/config.js');
@@ -91,12 +92,11 @@ async function worker({ o, seeds }) {
         else if (mine && !theirs) r.win++;
         else if (!mine && theirs) r.loss++;
         else r.draw++;
-        for (const s of S.ships) if (sideOf(s.team) === k) { r.fuel += s.fuel; r.ships++; }
+        for (const s of S.ships) if (sideOf(s.team) === k) { r.fuel += s.fuel; r.torpsLeft += s.torps; r.ships++; if (!s.alive) r.dead[s.deathBy] = (r.dead[s.deathBy] || 0) + 1; }
       }
     }
   }
   Math.random = random;
-  // доля времени ИИ: отдельный прогон шагов с ИИ и без
   return { res, durs };
 }
 
@@ -150,7 +150,7 @@ async function main() {
   })));
   const res = [side(), side()], durs = [];
   for (const out of outs) {
-    out.res.forEach((r, k) => { for (const key in r) res[k][key] += r[key]; });
+    out.res.forEach((r, k) => { for (const key in r) if (key === 'dead') for (const d in r.dead) res[k].dead[d] = (res[k].dead[d] || 0) + r.dead[d]; else res[k][key] += r[key]; });
     durs.push(...out.durs);
   }
   const share = await aiShare(o);
@@ -178,7 +178,10 @@ async function main() {
   row('угроз 2–8 с', r => r.threats);
   row('  ответ выхлопом', r => pct(r.plumeAnswered, r.threats));
   row('топливо, м/с', r => (r.fuel / r.ships).toFixed(0));
+  row('торпед осталось', r => (r.torpsLeft / r.ships).toFixed(1));
+  for (const d of Object.keys(A.dead)) row('погиб: ' + d, r => r.dead[d] || 0);
 }
 
+process.stdout.on('error', () => {});
 if (isMainThread) main();
 else worker(workerData).then(r => parentPort.postMessage(r));
