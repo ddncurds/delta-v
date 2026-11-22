@@ -1,12 +1,12 @@
 // ИИ кораблей: противники в одиночной игре, ведомые и пустые слоты сетевого боя.
 // ИИ знает только то, что видит его корабль: цель выбирает и атакует по своему треку
-import { D2R, FLAK, SHIP, G0 } from '../config.js';
+import { D2R, FLAK, SHIP, G0, DETECT } from '../config.js';
 import { dist, solveIntercept, wrap } from '../lib/math.js';
 import { S } from './state.js';
 import { startBurn, doDodge, doPlume, awayAngle } from './ship.js';
 import { fireFlak, launchTorp } from './weapons.js';
 import { nearestThreat, targetTrack, pickTarget, flakLeft } from './sensors.js';
-import { impactIn } from './predict.js';
+import { predictPath } from './predict.js';
 import * as baseline from './ai-baseline.js';
 
 // параметры ИИ: окна реакции по времени до попадания ttg, с; дальности, м; топливо, м/с; разброс, градусы
@@ -19,9 +19,12 @@ export const AI = {
   shipFlakR: 30000, shipFlakEvery: 4, shipFlakJit: 2, shipFlakMin: 2,   // облако по кораблю: дальность, интервал, разброс, сколько зарядов держать
   nudgeFuel: 700,                                 // ниже этого запаса дистанцию не подправляем
   nudge: false,                                   // старое подруливание: держать 70–130 км, в середине смещаться вбок
-  close: true, rangeMax: 100000, closeV: 1000,    // сближение: дальше rangeMax выйти на скорость сближения closeV, м/с
+  close: true, rangeMax: 100000, closeV: 1500,    // сближение: дальше rangeMax выйти на скорость сближения closeV, м/с
   openMax: 150, manG: 3, manEvery: 8,             // …и если расходимся быстрее openMax; тяга, g; проверка раз в manEvery, с
   knife: true, knifeRange: 15000, knifeV: 300,   // торпеды кончились — сближаемся до knifeRange и бьём облаком по кораблю
+  quiet: false,                                   // тишина: враг дальше DETECT — двигатель только если расходимся
+  fuelReserve: 700,                               // запас на защиту: манёвры сближения его не трогают, м/с
+  plumeKill: 0, plumeKillG: 8,                    // враг ближе plumeKill, м, и виден — жжём его факелом (0 — нет)
   // нападение
   firstSalvo: [12, 27], salvoEvery: [40, 65],     // первый залп и пауза между залпами, с
   salvoN: 4, salvoGap: 0.5, salvoRange: 180000,  // торпед в залпе, пауза между пусками, с; дальность, м
@@ -67,7 +70,13 @@ export function aiStep(f) {
     fireFlak(f, solveIntercept(f.pos, f.vel, tr.pos, tr.vel, FLAK.speed) + jitter(P.shipFlakJit)); ai.nextFlak = S.t + P.shipFlakEvery;
   }
   attack(f, ai, P, tr);
-  if (knife) closeIn(f, ai, { ...P, rangeMax: P.knifeRange, closeV: P.knifeV, nudgeFuel: P.plumeFuel }, tr, th);
+  // враг рядом и виден — факел по нему: корма на врага, полная тяга
+  const away = Math.atan2(f.pos[1] - tr.pos[1], f.pos[0] - tr.pos[0]);
+  if (P.plumeKill && tr.exact && f.burnEnd < 0 && (!th || th.ttg > 10) && f.fuel > P.plumeFuel && dist(tr.pos, f.pos) < P.plumeKill) {
+    startBurn(f, away, P.plumeKillG, 3); ai.killing = true;
+  }
+  if (ai.killing) { if (f.burnEnd < 0) ai.killing = false; else f.cmdHeading = f.issuedHeading = away; }
+  if (knife) closeIn(f, ai, { ...P, rangeMax: P.knifeRange, closeV: P.knifeV, fuelReserve: P.plumeFuel }, tr, th);
   else if (P.close) closeIn(f, ai, P, tr, th);
   // держит дистанцию 70–130 км, в середине — смещается вбок
   if (P.nudge && !knife && f.burnEnd < 0 && S.t >= ai.nextNudge && f.fuel > P.nudgeFuel && (!th || th.ttg > 30)) {
@@ -102,14 +111,16 @@ function attack(f, ai, P, tr) {
 
 // сближение по треку: враг далеко или уходит — гасим относительную скорость и выходим на сближение со скоростью closeV
 function closeIn(f, ai, P, tr, th) {
-  if (f.burnEnd >= 0 || S.t < ai.nextMan || f.fuel < P.nudgeFuel || (th && th.ttg < 30)) return;
+  if (f.burnEnd >= 0 || S.t < ai.nextMan || f.fuel < P.fuelReserve || (th && th.ttg < 30)) return;
   ai.nextMan = S.t + P.manEvery;
   const rx = tr.pos[0] - f.pos[0], ry = tr.pos[1] - f.pos[1], d = Math.hypot(rx, ry) || 1, ux = rx / d, uy = ry / d;
   const wx = tr.vel[0] - f.vel[0], wy = tr.vel[1] - f.vel[1], open = wx * ux + wy * uy;
   // уже сближаемся достаточно быстро — не мешаем; близко и не расходимся быстро — тоже
   if (-open >= P.closeV * 0.8 || (d < P.rangeMax && open < P.openMax)) return;
+  // в тишине враг нас не видит, пока двигатель молчит: включаем его, только если расходимся
+  if (P.quiet && d > DETECT && open < P.openMax) return;
   // нужная относительная скорость — сближение closeV по линии; приращение своей скорости dv = w − w'
-  const dx = wx + ux * P.closeV, dy = wy + uy * P.closeV, dv = Math.min(Math.hypot(dx, dy), f.fuel - P.nudgeFuel);
+  const dx = wx + ux * P.closeV, dy = wy + uy * P.closeV, dv = Math.min(Math.hypot(dx, dy), f.fuel - P.fuelReserve);
   if (dv < 50) return;
   startBurn(f, Math.atan2(dy, dx), P.manG, dv / (P.manG * G0));
 }
@@ -142,8 +153,9 @@ function defend(f, ai, P, th) {
 function avoidBodies(f, ai) {
   if (S.t < ai.nextGeo) return false;
   ai.nextGeo = S.t + 1;
-  const imp = impactIn(f, 90);
-  if (!imp || (f.burnEnd >= 0 && imp.hitT >= 15)) return false;
+  // прогноз шагом 2 с вдвое дешевле: это самая дорогая часть ИИ, а проверка всё равно повторяется каждую секунду
+  const imp = S.bodies.length ? predictPath(f, 90, 2) : null;
+  if (!imp?.hit || (f.burnEnd >= 0 && imp.hitT >= 15)) return false;
   const b = imp.hit, rx = f.pos[0] - b.pos[0], ry = f.pos[1] - b.pos[1], rr = Math.hypot(rx, ry) || 1;
   let px = -f.vel[1], py = f.vel[0];
   if (px * rx + py * ry < 0) { px = -px; py = -py; }
