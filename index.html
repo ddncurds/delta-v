@@ -181,11 +181,17 @@
 </div>
 
 <script>
-// ES-модули не загружаются со страницы, открытой как файл: подсказываем, как запустить
-if (location.protocol === 'file:') document.getElementById('ovText').textContent =
-  'The game is built from ES modules, and browsers do not load them from a page opened as a file. Start a local server in the game folder (make run or npm start) and open http://localhost:8080. — ' +
-  'Игра собрана из ES-модулей, а браузер не загружает их со страницы, открытой как файл. Запустите в папке игры локальный сервер (make run или npm start) и откройте http://localhost:8080.';
+// ES-модули не загружаются со страницы, открытой как файл (file://): тогда игру запускает offline.js —
+// обычный скрипт с исходниками всех модулей (собирает scripts/offline.mjs). Если и он не смог — подсказываем про сервер
+window.offlineFailed = function () { document.getElementById('ovText').textContent =
+  'The game is built from ES modules, and this browser does not load them from a page opened as a file. Start a local server in the game folder (make run or npm start) and open http://localhost:8080. — ' +
+  'Игра собрана из ES-модулей, а этот браузер не загружает их со страницы, открытой как файл. Запустите в папке игры локальный сервер (make run или npm start) и откройте http://localhost:8080.'; };
+(function () {
+  var sc = document.createElement('script');
+  if (location.protocol === 'file:') { sc.src = 'offline.js'; sc.onerror = window.offlineFailed; }
+  else { sc.type = 'module'; sc.src = 'src/main.js'; }
+  document.body.appendChild(sc);
+})();
 </script>
-<script type="module" src="src/main.js"></script>
 </body>
 </html>

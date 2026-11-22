@@ -3,16 +3,19 @@
 
 PORT ?= 8080
 NODE ?= node
-JS := $(shell find src scripts tests -name "*.js" -o -name "*.mjs")
+JS := offline.js $(shell find src scripts tests -name "*.js" -o -name "*.mjs")
 
 .DEFAULT_GOAL := help
-.PHONY: help run test test-sim test-net test-e2e test-ui check ci
+.PHONY: help run offline test test-sim test-net test-e2e test-ui check ci
 
 help: ## список команд
 	@grep -E "^[a-z0-9-]+:.*## " $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-10s %s\n", $$1, $$2}'
 
-run: ## запустить игру на http://localhost:8080, другой порт: make run PORT=3000
+run: offline ## запустить игру на http://localhost:8080, другой порт: make run PORT=3000
 	$(NODE) scripts/serve.mjs $(PORT)
+
+offline: ## пересобрать offline.js — запуск игры из index.html, открытого как файл
+	$(NODE) scripts/offline.mjs
 
 test: ## все тесты
 	$(NODE) --test tests/*.test.js
@@ -27,7 +30,7 @@ test-e2e: ## только сквозной сетевой бой: три коп�
 	$(NODE) --test tests/mp-e2e.test.js
 
 test-ui: ## тесты интерфейса, языков и сервера разработки
-	$(NODE) --test tests/ui.test.js tests/i18n-core.test.js tests/i18n-ui.test.js tests/serve.test.js
+	$(NODE) --test tests/ui.test.js tests/i18n-core.test.js tests/i18n-ui.test.js tests/serve.test.js tests/offline.test.js
 
 check: ## проверить синтаксис всех модулей
 	@for f in $(JS); do $(NODE) --check $$f || exit 1; done; echo "синтаксис в порядке: $(words $(JS)) файлов"
