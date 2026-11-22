@@ -43,7 +43,7 @@ export default {
 
   // instruments
   'hud.crew.ok': 'normal', 'hud.crew.tired': 'tiring', 'hud.crew.slow': 'orders delayed', 'hud.crew.limit': 'at the limit',
-  'hud.flakNext': 'next charge in {s|s} s', 'hud.ping': 'ping {ms} ms',
+  'hud.torpNext': 'next torpedo in {s|s} s', 'hud.flakNext': 'next charge in {s|s} s', 'hud.ping': 'ping {ms} ms',
   'hud.dead': 'Your ship is destroyed', 'hud.deadView': 'Your ship is destroyed. The battle goes on, camera on {name}',
   'hud.noTarget': 'No target', 'hud.targetOf': 'Target {name}: ',
   'hud.contact': 'contact exact, {d} km, hull {hp}%', 'hud.lost': 'contact lost {ago|s} s ago, about {d} km',

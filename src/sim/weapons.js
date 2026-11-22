@@ -1,6 +1,6 @@
 // Оружие: торпеды, облако шариков и выхлоп двигателя как оружие ближнего боя.
 // Своих оружие не задевает: шарики, осколки и факел опасны только кораблям и торпедам другой команды
-import { FLAK, TORP, PLUME, D2R, FX_CONFIG } from '../config.js';
+import { SHIP, FLAK, TORP, PLUME, D2R, FX_CONFIG } from '../config.js';
 import { clamp, dist, closestDist, solveIntercept } from '../lib/math.js';
 import { S, sayTo, addFx } from './state.js';
 import { gravAt, bodyHit } from './bodies.js';
@@ -46,6 +46,7 @@ export function launchTorp(s, ang) {
   const tr = targetTrack(s);
   if (!tr) { sayTo(s.id, 'msg.noTorpTarget'); return false; }
   s.torps--; S.stats[s.id].launched++;
+  if (s.torpTimer <= 0) s.torpTimer = SHIP.torpReload;
   ang ??= Math.atan2(tr.pos[1] - s.pos[1], tr.pos[0] - s.pos[0]);
   S.torps.push({ id: S.nextId++, owner: s.id, team: s.team, target: s.targetId, pos: [s.pos[0], s.pos[1]],
     vel: [s.vel[0] + Math.cos(ang) * 100, s.vel[1] + Math.sin(ang) * 100],

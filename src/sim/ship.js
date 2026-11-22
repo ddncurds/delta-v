@@ -13,7 +13,7 @@ export function newShip(x, y, h, spec) {
   return { id: spec.id, team: spec.team, name: spec.name, ctrl: spec.ctrl, owner: spec.owner || '',
     pos: [x, y], vel: [0, 0], heading: h, cmdHeading: h, cmdThrottle: 0,
     issuedThrottle: 0, issuedHeading: h, accG: 0, fuel: SHIP.dv, stress: 0,
-    hp: 100, deathBy: '', aimAway: false, torps: SHIP.torps, flak: FLAK.charges, flakTimer: 0, flakCd: 0, orders: [], alive: true,
+    hp: 100, deathBy: '', aimAway: false, torps: SHIP.torps, torpTimer: 0, flak: FLAK.charges, flakTimer: 0, flakCd: 0, orders: [], alive: true,
     crew: spec.ctrl === 'human', targetId: -1, spread: 5 * D2R, burnEnd: -1, ai: null };
 }
 
@@ -85,6 +85,11 @@ export function stepShip(s, dt) {
     return;
   }
   s.flakCd = Math.max(0, s.flakCd - dt);
+  // запас торпед пополняется по одной, пока не станет полным
+  if (s.torps < SHIP.torps && s.torpTimer > 0) {
+    s.torpTimer -= dt;
+    if (s.torpTimer <= 0) { s.torps++; s.torpTimer = s.torps < SHIP.torps ? SHIP.torpReload : 0; }
+  }
   if (s.flak < FLAK.charges && s.flakTimer > 0) {
     s.flakTimer -= dt;
     if (s.flakTimer <= 0) { s.flak++; s.flakTimer = s.flak < FLAK.charges ? FLAK.recharge : 0; }

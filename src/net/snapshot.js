@@ -8,7 +8,7 @@ import { S, gravAt, bodyHit, fly, normalizeRoster, eyeOf, endBattle } from '../s
 
 // свой корабль гость получает целиком, остальные — только видимые снаружи поля
 const SHIP_FULL = ['pos', 'vel', 'heading', 'cmdHeading', 'cmdThrottle', 'issuedThrottle', 'issuedHeading', 'accG', 'fuel', 'stress',
-  'hp', 'deathBy', 'aimAway', 'torps', 'flak', 'flakTimer', 'flakCd', 'alive', 'burnEnd', 'spread', 'targetId', 'ctrl'];
+  'hp', 'deathBy', 'aimAway', 'torps', 'torpTimer', 'flak', 'flakTimer', 'flakCd', 'alive', 'burnEnd', 'spread', 'targetId', 'ctrl'];
 const SHIP_PUB = ['pos', 'vel', 'heading', 'accG', 'hp', 'alive', 'deathBy', 'ctrl'];
 
 const pick = (o, ks) => { const r = {}; for (const k of ks) r[k] = o[k]; return r; };

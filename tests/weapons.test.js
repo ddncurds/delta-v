@@ -19,6 +19,21 @@ test('торпеда: пуск тратит боезапас, без торпе�
   assert.equal(S.torps.length, 1);
 });
 
+test('запас торпед пополняется по одной за SHIP.torpReload секунд, но не сверх полного', () => {
+  emptySpace({ foe: [1e7, 0] });
+  launchTorp(me()); launchTorp(me());
+  assert.equal(me().torps, SHIP.torps - 2);
+  runFor(SHIP.torpReload - 1);
+  assert.equal(me().torps, SHIP.torps - 2, 'раньше срока не пополняется');
+  runFor(2);
+  assert.equal(me().torps, SHIP.torps - 1);
+  runFor(SHIP.torpReload);
+  assert.equal(me().torps, SHIP.torps);
+  runFor(SHIP.torpReload * 2);
+  assert.equal(me().torps, SHIP.torps, 'сверх полного запаса не растёт');
+  assert.equal(me().torpTimer, 0);
+});
+
 test('торпеда догоняет неподвижную цель и уничтожает её одним попаданием', () => {
   emptySpace({ foe: [20000, 3000] });
   launchTorp(me());

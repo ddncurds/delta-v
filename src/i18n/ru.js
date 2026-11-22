@@ -43,7 +43,7 @@ export default {
 
   // приборы
   'hud.crew.ok': 'в норме', 'hud.crew.tired': 'устают', 'hud.crew.slow': 'приказы с задержкой', 'hud.crew.limit': 'на пределе',
-  'hud.flakNext': 'следующий заряд через {s|s} с', 'hud.ping': 'пинг {ms} мс',
+  'hud.torpNext': 'следующая торпеда через {s|s} с', 'hud.flakNext': 'следующий заряд через {s|s} с', 'hud.ping': 'пинг {ms} мс',
   'hud.dead': 'Ваш корабль уничтожен', 'hud.deadView': 'Ваш корабль уничтожен. Бой продолжается, камера на {name}',
   'hud.noTarget': 'Цели нет', 'hud.targetOf': 'Цель {name}: ',
   'hud.contact': 'контакт точный, {d} км, корпус {hp}%', 'hud.lost': 'контакт потерян {ago|s} с назад, примерно {d} км',

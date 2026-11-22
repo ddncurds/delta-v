@@ -48,6 +48,7 @@ export function updateHud() {
   if (!dragging.thr) el.thr.value = me.issuedThrottle;
   el.vThr.textContent = me.issuedThrottle.toFixed(1) + ' g';
   el.vTorp.textContent = me.torps;
+  el.vTorp.title = me.torpTimer > 0 ? t('hud.torpNext', { s: Math.ceil(me.torpTimer) }) : '';
   el.vFlak.textContent = '●'.repeat(me.flak) + '○'.repeat(FLAK.charges - me.flak);
   el.vFlak.title = me.flakTimer > 0 ? t('hud.flakNext', { s: Math.ceil(me.flakTimer) }) : '';
   el.vSpread.textContent = (me.spread / D2R).toFixed(1).replace('.0', '') + '°';
