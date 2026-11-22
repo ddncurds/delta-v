@@ -5,7 +5,7 @@ import { clamp, wrap } from '../lib/math.js';
 import { S, gravAt, bodyHit, fly } from '../sim/index.js';
 
 // свой корабль гость получает целиком, корабль хоста — только когда тот виден
-const SHIP_FULL = ['pos', 'vel', 'heading', 'cmdHeading', 'cmdThrottle', 'issuedThrottle', 'issuedHeading', 'accG', 'stress',
+const SHIP_FULL = ['pos', 'vel', 'heading', 'cmdHeading', 'cmdThrottle', 'issuedThrottle', 'issuedHeading', 'accG', 'fuel', 'stress',
   'hp', 'deathBy', 'aimAway', 'torps', 'flak', 'flakTimer', 'flakCd', 'alive', 'burnEnd', 'spread'];
 const SHIP_PUB = ['pos', 'vel', 'heading', 'accG', 'hp', 'alive', 'deathBy'];
 

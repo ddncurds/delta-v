@@ -1,5 +1,5 @@
-// Корабль: создание, манёвры и шаг движения. Топлива нет — реактор даёт тягу без ограничений,
-// зато перегрузка копит усталость экипажа, а усталость замедляет выполнение приказов
+// Корабль: создание, манёвры и шаг движения. Тяга расходует топливо (запас Δv),
+// перегрузка копит усталость экипажа, а усталость замедляет выполнение приказов
 import { G0, SHIP, FLAK, D2R } from '../config.js';
 import { clamp, wrap } from '../lib/math.js';
 import { S, sayTo, other } from './state.js';
@@ -8,7 +8,7 @@ import { nearestThreat } from './sensors.js';
 
 export function newShip(x, y, h, key, crew) {
   return { pos: [x, y], vel: [0, 0], heading: h, cmdHeading: h, cmdThrottle: 0,
-    issuedThrottle: 0, issuedHeading: h, accG: 0, stress: 0,
+    issuedThrottle: 0, issuedHeading: h, accG: 0, fuel: SHIP.dv, stress: 0,
     hp: 100, deathBy: '', aimAway: false, torps: SHIP.torps, flak: FLAK.charges, flakTimer: 0, flakCd: 0, orders: [], alive: true,
     key, isPlayer: key === 'me', crew, spread: 5 * D2R, burnEnd: -1, ai: null };
 }
@@ -59,7 +59,9 @@ export function stepShip(s, dt) {
   if (s.aimAway) { s.cmdHeading = awayAngle(s, s.key); s.issuedHeading = s.cmdHeading; }
   const m = SHIP.turn * dt;
   s.heading = wrap(s.heading + clamp(wrap(s.cmdHeading - s.heading), -m, m));
-  const a = clamp(s.cmdThrottle, 0, SHIP.maxG) * G0;
+  let a = clamp(s.cmdThrottle, 0, SHIP.maxG) * G0;
+  if (s.fuel <= 0) a = 0; else if (a * dt > s.fuel) a = s.fuel / dt;
+  s.fuel = Math.max(0, s.fuel - a * dt);
   s.accG = a / G0;
   fly(s.pos, s.vel, Math.cos(s.heading) * a, Math.sin(s.heading) * a, dt);
   const hb = bodyHit(s.pos[0], s.pos[1]);

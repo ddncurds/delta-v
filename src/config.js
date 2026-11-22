@@ -3,10 +3,10 @@ export const G0 = 9.81;
 export const DT = 0.05;
 export const D2R = Math.PI / 180;
 
-// корабль идёт на термоядерном реакторе: тяга не кончается, предел манёвра — перегрузка экипажа
-export const SHIP = { maxG: 8, torps: 10, turn: 60 * D2R };
+// запас топлива корабля задан как Δv, м/с: пока двигатель тянет, он тратится; кончился — тяги нет
+export const SHIP = { maxG: 8, dv: 9000, torps: 10, turn: 60 * D2R };
 export const TORP = { acc: 400, dv: 3900, blast: 150, fuse: 1500, frags: 80, fragDmg: 4, seeker: 40000, N: 6, vmin: 3500 };
-export const FLAK = { n: 70, speed: 1800, life: 40, hitR: 60, kill: 2, charges: 3, recharge: 15, cd: 0.8, recoil: 4, shipR: 100, dmg: 5 };
+export const FLAK = { n: 70, speed: 1800, life: 40, hitR: 60, kill: 2, charges: 3, recharge: 15, cd: 0.8, mass: 15, recoil: 4, shipR: 100, dmg: 5 };
 export const PLUME = { perG: 1500, half: 6 * D2R, base: 15, rate: 25, melt: 100, shipRate: 3 };
 export const DETECT = 25000;
 

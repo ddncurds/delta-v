@@ -16,6 +16,7 @@ export function autoAim(key) {
 export function fireFlak(s, key, ang) {
   if (s.flak <= 0 || s.flakCd > 0) { sayTo(key, 'Облако не готово'); return false; }
   s.flak--; s.flakCd = FLAK.cd;
+  s.fuel = Math.max(0, s.fuel - FLAK.mass);
   if (s.flakTimer <= 0) s.flakTimer = FLAK.recharge;
   // уставший экипаж целится хуже
   const jit = s.crew ? Math.max(0, (s.stress - 60) / 40) * 4 * D2R : 0;

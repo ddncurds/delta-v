@@ -27,7 +27,7 @@ function showResult() {
   const won = S.result.startsWith('Победа');
   $('ovTitle').textContent = won ? 'Победа' : S.result.startsWith('Взаимное') ? 'Ничья' : 'Поражение';
   const [mm, ss] = fmtClock(S.t).split(':').map(Number);
-  $('ovText').textContent = S.result + '. Бой длился ' + mm + ' мин ' + ss + ' с. Пущено торпед: ' + S.stats.me.launched +
+  $('ovText').textContent = S.result + '. Бой длился ' + mm + ' мин ' + ss + ' с. Осталось Δv: ' + Math.round(S.me.fuel) + ' м/с. Пущено торпед: ' + S.stats.me.launched +
     ', сбито торпед противника: ' + S.stats.me.kills + '.';
   $('ovKeys').hidden = true; $('ovTouch').hidden = true;
   el.overlay.hidden = false;

@@ -1,9 +1,9 @@
-// Проверки симуляции без браузера: npm test
+// Мир боя: гравитация, прогноз, столкновения, итог боя, бои с ИИ
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DT } from '../src/config.js';
 import { dist } from '../src/lib/math.js';
-import { S, newGame, step, predictPath } from '../src/sim/index.js';
+import { S, newGame, step, predictPath, resultFor, gravAt, surfaceG } from '../src/sim/index.js';
 import { paintSphere } from '../src/render/planets.js';
 
 // свой корабль в точке p со скоростью v, противник далеко и без ИИ
@@ -11,14 +11,6 @@ function solo(p, v) {
   S.me.pos = [...p]; S.me.vel = [...v];
   S.foe.pos = [1e8, 1e8]; S.foe.vel = [0, 0]; S.foe.ai = null;
 }
-
-test('у корабля нет топлива: долгая тяга не кончается', () => {
-  newGame(); S.bodies = []; solo([0, 0], [0, 0]);
-  S.me.crew = false; S.me.cmdThrottle = 2;
-  for (let i = 0; i < 20 * 60 / DT; i++) step(DT);
-  assert.ok(!('fuel' in S.me));
-  assert.ok(S.me.accG > 1.9, 'через 20 минут двигатель всё ещё тянет');
-});
 
 test('круговая орбита вокруг одиночной планеты держится', () => {
   newGame(); S.bodies = [S.bodies[0]];
@@ -70,4 +62,50 @@ test('текстуры тел: диск непрозрачен внутри и �
     assert.equal(px[at(n / 2, n / 2)], 255, look);
     assert.equal(px[at(0, 0)], 0, look);
   }
+});
+
+test('новый бой: корабли далеко друг от друга, уже в движении, с полным боезапасом', () => {
+  for (let g = 0; g < 20; g++) {
+    newGame();
+    assert.ok(dist(S.me.pos, S.foe.pos) > 100000);
+    for (const s of [S.me, S.foe]) {
+      const v = Math.hypot(...s.vel);
+      assert.ok(v >= 300 && v <= 800, `скорость ${v}`);
+      assert.equal(s.hp, 100); assert.equal(s.alive, true); assert.equal(s.torps, 10);
+    }
+    assert.equal(S.me.crew, true); assert.ok(S.foe.ai, 'в одиночной игре противником управляет ИИ');
+    for (const b of S.bodies) for (const s of [S.me, S.foe]) assert.ok(dist(s.pos, b.pos) > b.r + 20000);
+  }
+});
+
+test('сетевой бой: у противника экипаж и нет ИИ', () => {
+  newGame({ mp: true });
+  assert.equal(S.mp, true); assert.equal(S.foe.crew, true); assert.equal(S.foe.ai, null);
+});
+
+test('притяжение у поверхности соответствует заданному в g', () => {
+  newGame(); S.bodies = [S.bodies[0]];
+  const b = S.bodies[0], g = gravAt(b.pos[0] + b.r, b.pos[1]);
+  assert.ok(Math.abs(Math.hypot(...g) / 9.81 - surfaceG(b)) < 1e-9);
+  assert.ok(surfaceG(b) >= 1 && surfaceG(b) <= 1.5);
+});
+
+test('итог боя глазами каждой стороны', () => {
+  newGame();
+  S.foe.alive = false; S.foe.deathBy = 'flak';
+  assert.equal(resultFor('me'), 'Победа: корабль противника разрушен облаком шариков');
+  assert.equal(resultFor('foe'), 'Поражение: корпус разрушен облаком шариков');
+  S.me.alive = false;
+  assert.equal(resultFor('me'), 'Взаимное уничтожение');
+  S.forfeit = 'foe';
+  assert.equal(resultFor('me'), 'Победа: противник покинул бой');
+  assert.equal(resultFor('foe'), 'Поражение: вы покинули бой');
+});
+
+test('после конца боя симуляция стоит', () => {
+  newGame(); S.foe.alive = false; step(DT);
+  assert.equal(S.over, true);
+  const t = S.t, p = [...S.me.pos];
+  step(DT);
+  assert.equal(S.t, t); assert.deepEqual(S.me.pos, p);
 });

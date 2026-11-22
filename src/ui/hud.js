@@ -34,6 +34,8 @@ export function updateHud() {
   const me = S.me, tr = S.tracks.me, foe = S.foe, st = me.stress;
   const gv = gravAt(me.pos[0], me.pos[1]), gg = Math.hypot(gv[0], gv[1]) / G0, mb = mainBody(me.pos);
 
+  const fuelCls = me.fuel < SHIP.dv * 0.2 ? 'warn' : '';
+  el.vFuel.textContent = Math.round(me.fuel) + ' м/с'; setBar('bFuel', me.fuel / SHIP.dv, fuelCls);
   el.vHp.textContent = Math.round(me.hp) + '%'; setBar('bHp', me.hp / 100, hpCls(me.hp));
   el.vG.textContent = me.accG.toFixed(1) + ' g'; setBar('bG', me.accG / SHIP.maxG, gCls(me.accG));
   el.vCrew.textContent = st < 20 ? 'в норме' : st < 40 ? 'устают' : st < 70 ? 'приказы с задержкой' : 'на пределе';
@@ -57,6 +59,7 @@ export function updateHud() {
   el.vThreat.textContent = threatText();
   $('zhome').classList.toggle('on', !cam.follow);
 
+  el.mFuel.textContent = Math.round(me.fuel); setBar('mbFuel', me.fuel / SHIP.dv, fuelCls);
   el.mGrav.textContent = gg.toFixed(2); setBar('mbGrav', gg / 1.5, gg >= 1 ? 'warn' : '');
   el.mHp.textContent = Math.round(me.hp) + '%'; setBar('mbHp', me.hp / 100, hpCls(me.hp));
   el.mG.textContent = me.accG.toFixed(1); setBar('mbG', me.accG / SHIP.maxG, gCls(me.accG));

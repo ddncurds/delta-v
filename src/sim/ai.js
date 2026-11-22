@@ -20,8 +20,8 @@ export function aiStep() {
       const ang = solveIntercept(f.pos, f.vel, th.t.pos, th.t.vel, FLAK.speed) + (Math.random() * 2 - 1) * 1.5 * D2R;
       fireFlak(f, 'foe', ang); ai.nextFlak = S.t + 3.5;
     }
-    if (th.ttg < 17 && f.burnEnd < 0) doDodge(f, 'foe');
-    else if (th.ttg < 8 && th.ttg > 2 && f.burnEnd < 0 && ai.plumeTorp !== th.t) {
+    if (th.ttg < 17 && f.burnEnd < 0 && f.fuel > 250) doDodge(f, 'foe');
+    else if (th.ttg < 8 && th.ttg > 2 && f.burnEnd < 0 && f.fuel > 250 && ai.plumeTorp !== th.t) {
       ai.plumeTorp = th.t;
       if (Math.random() < 0.6) doPlume(f, 'foe');
     }
@@ -36,7 +36,7 @@ export function aiStep() {
     ai.salvoLeft = Math.min(2, f.torps); ai.salvoAt = S.t; ai.nextSalvo = S.t + 40 + Math.random() * 25;
   }
   // держит дистанцию 70–130 км, в середине — смещается вбок
-  if (f.burnEnd < 0 && S.t >= ai.nextNudge) {
+  if (f.burnEnd < 0 && S.t >= ai.nextNudge && f.fuel > 700) {
     const d = dist(tr.pos, f.pos), base = Math.atan2(tr.pos[1] - f.pos[1], tr.pos[0] - f.pos[0]);
     if (d > 130000) startBurn(f, base, 2, 8);
     else if (d < 70000) startBurn(f, base + Math.PI, 2, 8);
