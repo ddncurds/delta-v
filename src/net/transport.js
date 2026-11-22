@@ -1,16 +1,19 @@
 // Транспорт сетевой игры: MQTT через брокер flespi.
-// Топики: lobby/<код> — retained-объявление открытой комнаты; room/<код>/g — от гостя хосту; room/<код>/h — от хоста гостю
-export const NET_CFG = { url: 'wss://mqtt.flespi.io', token: '', prefix: 'deltav/v3',
-  lib: 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js', maxSpeed: 10 };
+// Топики: lobby/<код> — retained-объявление открытой комнаты; room/<код>/g — от гостей хосту;
+// room/<код>/h — от хоста всем гостям; room/<код>/h/<id гостя> — снимки и ответы одному гостю
+export const NET_CFG = { url: 'wss://mqtt.flespi.io', token: '', prefix: 'deltav/v4',
+  lib: 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js', maxSpeed: 10,
+  // сроки, мс: ответ комнаты на вход, тишина до паузы «нет связи», тишина до ухода (гость — ИИ, хост — бой прерван)
+  joinTimeout: 8000, lostAfter: 5000, dropAfter: 60000 };
 
-// состояние сетевой сессии; role: null — одиночная игра, 'host' или 'guest'
+// состояние сетевой сессии; role: null — одиночная игра, 'host' или 'guest'.
+// slots — состав боя (src/roster.js), его ведёт хост; peers — гости у хоста: id → { nick, ship, lastRx, ack, ... }
 export const net = {
   role: null, client: null, lobby: null, lobbyGen: 0, rooms: new Map(),
-  room: '', id: '', nick: '', peerId: '', peerNick: '', joined: false, synced: false,
-  seq: 0, ack: 0, // последний приказ гостя и последний принятый хостом
-  lastRx: 0, lastSnap: 0, lastPing: 0, advAt: 0, rtt: 0, lost: false,
-  peerSpeed: 1, peerAuto: true, pauseBy: '', pauseReason: '', holdUntil: 0, snapScale: 1,
-  sayQ: [], ready: { me: false, foe: false },
+  room: '', id: '', nick: '', hostNick: '', joined: false, synced: false, slots: null, peers: new Map(), pick: -1, // pick — кого хост пересаживает
+  seq: 0, // последний приказ гостя
+  lastRx: 0, lastSnap: 0, lastPing: 0, advAt: 0, advertised: false, rtt: 0, lost: false,
+  pauseBy: '', pauseNick: '', pauseReason: '', holdUntil: 0, snapScale: 1,
 };
 
 export const topic = (...p) => [NET_CFG.prefix, ...p].join('/');
@@ -47,10 +50,11 @@ export async function connect(token, will, onLateError) {
   });
 }
 
-export function netSend(m, qos = 0) {
+// гость пишет хосту; хост — всем гостям или, если задан to, одному
+export function netSend(m, qos = 0, to = '') {
   const c = net.client;
   if (!c || !c.connected) return;
   m.from = net.id;
-  if (net.role === 'host' && !m.to) m.to = net.peerId;
-  c.publish(topic('room', net.room, net.role === 'host' ? 'h' : 'g'), JSON.stringify(m, round2), { qos });
+  const t = net.role === 'host' ? (to ? topic('room', net.room, 'h', to) : topic('room', net.room, 'h')) : topic('room', net.room, 'g');
+  c.publish(t, JSON.stringify(m, round2), { qos });
 }

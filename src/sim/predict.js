@@ -1,7 +1,7 @@
 // Прогноз траектории в поле тяжести тел
 import { G0, SHIP } from '../config.js';
 import { clamp, wrap } from '../lib/math.js';
-import { S, shipOf } from './state.js';
+import { S } from './state.js';
 import { fly, bodyHit } from './bodies.js';
 
 // пока идёт текущий манёвр (без срока — первые 20 с) и есть топливо, корабль летит с тягой, дальше по инерции.
@@ -28,9 +28,8 @@ export function predictPath(s, T, h) {
   return { pts, burnN, hit, hitT };
 }
 
-// грозит ли кораблю стороны key столкновение с телом в ближайшие T секунд
-export function impactIn(key, T) {
-  const s = shipOf(key);
+// грозит ли кораблю s столкновение с телом в ближайшие T секунд
+export function impactIn(s, T) {
   if (!s.alive || !S.bodies.length) return null;
   const pp = predictPath(s, T, 1);
   return pp.hit ? pp : null;

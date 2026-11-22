@@ -1,8 +1,8 @@
 // Приборы: боковая панель на компьютере и плашки поверх карты на телефоне
-import { G0, SHIP, FLAK, D2R } from '../config.js';
+import { G0, SHIP, FLAK, D2R, TEAM } from '../config.js';
 import { clamp, dist } from '../lib/math.js';
 import { fmtDist, fmtClock } from '../lib/format.js';
-import { S, reactionDelay, nearestThreat, gravAt, mainBody, impactIn } from '../sim/index.js';
+import { S, reactionDelay, nearestThreat, gravAt, mainBody, impactIn, myShip, viewShip, teamCount } from '../sim/index.js';
 import { run } from '../run.js';
 import { cam } from '../render/camera.js';
 import { net, pauseLabel } from '../net/multiplayer.js';
@@ -31,7 +31,7 @@ export function initHud() {
 }
 
 export function updateHud() {
-  const me = S.me, tr = S.tracks.me, foe = S.foe, st = me.stress;
+  const me = myShip(), st = me.stress;
   const gv = gravAt(me.pos[0], me.pos[1]), gg = Math.hypot(gv[0], gv[1]) / G0, mb = mainBody(me.pos);
 
   const fuelCls = me.fuel < SHIP.dv * 0.2 ? 'warn' : '';
@@ -51,12 +51,9 @@ export function updateHud() {
   el.vFlak.title = me.flakTimer > 0 ? 'следующий заряд через ' + Math.ceil(me.flakTimer) + ' с' : '';
   el.vSpread.textContent = (me.spread / D2R).toFixed(1).replace('.0', '') + '°';
 
-  const d = dist(me.pos, tr.pos);
-  el.vContact.textContent = foe.alive
-    ? (tr.exact ? 'Контакт точный, ' + (d / 1000).toFixed(0) + ' км, корпус противника ' + Math.round(foe.hp) + '%'
-                : 'Контакт потерян ' + Math.round(S.t - tr.seenT) + ' с назад, примерно ' + (d / 1000).toFixed(0) + ' км')
-    : 'Противник уничтожен';
-  el.vThreat.textContent = threatText();
+  el.vContact.textContent = contactText(me);
+  el.vTeams.textContent = S.ships.length > 2 ? [0, 1].map(t => TEAM.names[t] + ' ' + teamCount(t).join('/')).join(' · ') : '';
+  el.vThreat.textContent = threatText(viewShip());
   $('zhome').classList.toggle('on', !cam.follow);
 
   el.mFuel.textContent = Math.round(me.fuel); setBar('mbFuel', me.fuel / SHIP.dv, fuelCls);
@@ -64,7 +61,7 @@ export function updateHud() {
   el.mHp.textContent = Math.round(me.hp) + '%'; setBar('mbHp', me.hp / 100, hpCls(me.hp));
   el.mG.textContent = me.accG.toFixed(1); setBar('mbG', me.accG / SHIP.maxG, gCls(me.accG));
   el.mCrew.textContent = Math.round(st) + '%'; setBar('mbCrew', st / 100, crewCls(st));
-  el.mContact.textContent = el.vContact.textContent;
+  el.mContact.textContent = (el.vTeams.textContent ? el.vTeams.textContent + '. ' : '') + el.vContact.textContent;
   el.mThreat.textContent = el.vThreat.textContent;
   if (!dragging.thr2) el.thr2.value = me.issuedThrottle;
   el.vThr2.textContent = me.issuedThrottle.toFixed(1) + ' g';
@@ -74,12 +71,26 @@ export function updateHud() {
   el.bPause.classList.toggle('on', run.paused); el.dPause.classList.toggle('on', run.paused);
 }
 
+// цель своего корабля: что о ней известно
+function contactText(me) {
+  if (!me.alive) {
+    const v = viewShip();
+    return v === me ? 'Ваш корабль уничтожен' : 'Ваш корабль уничтожен. Бой продолжается, камера на ' + v.name;
+  }
+  const e = S.ships[me.targetId], tr = e && S.tracks[me.id][e.id];
+  if (!tr || !e.alive) return 'Цели нет';
+  const d = (dist(me.pos, tr.pos) / 1000).toFixed(0), who = S.ships.length > 2 ? 'Цель ' + e.name + ': ' : '';
+  const txt = tr.exact ? 'контакт точный, ' + d + ' км, корпус ' + Math.round(e.hp) + '%'
+    : 'контакт потерян ' + Math.round(S.t - tr.seenT) + ' с назад, примерно ' + d + ' км';
+  return who ? who + txt : txt[0].toUpperCase() + txt.slice(1);
+}
+
 // угрозы: столкновение с телом и вражеские торпеды; о новом столкновении ещё и всплывающее сообщение
-function threatText() {
-  const imp = run.started && !S.over ? impactIn('me', 120) : null;
+function threatText(me) {
+  const imp = run.started && !S.over && me.alive ? impactIn(me, 120) : null;
   if (imp && !impactWarned) say('Курс ведёт к столкновению с ' + imp.hit.name + ' через ' + Math.round(imp.hitT) + ' с');
   impactWarned = !!imp;
-  const th = nearestThreat('me'), n = S.torps.filter(t => t.owner === 'foe').length;
+  const th = nearestThreat(me), n = S.torps.filter(t => t.team !== me.team).length;
   return (imp ? 'Столкновение с ' + imp.hit.name + ' через ' + Math.round(imp.hitT) + ' с. ' : '') +
     (n ? 'Торпед противника: ' + n + (th && th.ttg < 1e8 ? ', ближайшая через ' + Math.round(th.ttg) + ' с' : '') : 'Торпед противника нет');
 }

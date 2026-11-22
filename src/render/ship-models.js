@@ -2,7 +2,8 @@
 // нос в +x (0,5), корма в −x, ось y — поперёк корпуса. Модели симметричны относительно оси x
 import { HULL } from './theme.js';
 
-export const shipLength = s => s.isPlayer ? 46 : 55;
+// у синих — корвет, у красных — фрегат
+export const shipLength = s => s.team === 0 ? 46 : 55;
 
 const mirrorY = top => top.concat(top.slice().reverse().map(([x, y]) => [x, -y]));
 const flipY = pts => pts.map(([x, y]) => [x, -y]);
@@ -151,6 +152,6 @@ export function drawShipModel(ctx, s, col, Lp, x, y, aim) {
   const d = aim - s.heading;
   const o = { col, px: 1 / Lp, hot: Math.min(1, s.accG / 2), look: [Math.cos(d), -Math.sin(d)], blink: Math.floor(performance.now() / 700) % 2 === 0 };
   ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(Lp, Lp);
-  (s.isPlayer ? drawRocinante : drawFrigate)(ctx, o);
+  (s.team === 0 ? drawRocinante : drawFrigate)(ctx, o);
   ctx.restore();
 }

@@ -2,7 +2,7 @@
 import { G0, FLAK, PLUME } from '../config.js';
 import { dist } from '../lib/math.js';
 import { fmtDist } from '../lib/format.js';
-import { S, predictPath, mainBody, surfaceG, timeToImpact } from '../sim/index.js';
+import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip } from '../sim/index.js';
 import { run } from '../run.js';
 import { pointer, COARSE } from '../ui/pointer.js';
 import { C, FONT } from './theme.js';
@@ -15,7 +15,9 @@ const GRAV_RINGS = [0.5, 0.2, 0.1, 0.05];   // линии равного при�
 const PREDICT = { T: 240, h: 0.5 };          // горизонт и шаг прогноза курса, с
 const MODEL_MIN_PX = 22;                     // короче этого корабль рисуется значком
 
-let ctx = null, vx = 0, vy = 0;
+// view — корабль, чьими глазами смотрим (свой, а после гибели — союзник); его команда — «свои»
+let ctx = null, vx = 0, vy = 0, view = null;
+const sideCol = team => team === view.team ? C.me : C.foe;
 const X = x => (x - vx) / cam.mpp + cam.w / 2;
 const Y = y => cam.h / 2 - (y - vy) / cam.mpp;
 
@@ -24,6 +26,7 @@ export function initScene(canvas) { ctx = canvas.getContext('2d'); }
 export function draw() {
   ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
   ctx.fillStyle = C.paper; ctx.fillRect(0, 0, cam.w, cam.h);
+  view = viewShip();
   [vx, vy] = camCenter();
   updateStars(vx, vy);
   drawStars(ctx, cam.w, cam.h);
@@ -32,7 +35,7 @@ export function draw() {
   drawRangeRings();
   drawScaleBar(gridStep);
   drawBodies();
-  if (S.me.alive) drawPrediction();
+  if (myShip().alive) drawPrediction(myShip());
   drawFlakCone();
   drawPellets();
   drawTorps();
@@ -60,7 +63,7 @@ function drawGrid() {
 
 // дальномерные круги вокруг своего корабля
 function drawRangeRings() {
-  const me = S.me, rs = niceStep(cam.mpp * 200), sx0 = X(me.pos[0]), sy0 = Y(me.pos[1]);
+  const me = view, rs = niceStep(cam.mpp * 200), sx0 = X(me.pos[0]), sy0 = Y(me.pos[1]);
   const mx = Math.hypot(cam.w, cam.h) / 2 + Math.hypot(sx0 - cam.w / 2, sy0 - cam.h / 2);
   ctx.strokeStyle = C.line; ctx.setLineDash([2, 5]); ctx.fillStyle = C.ink2; ctx.textAlign = 'left';
   for (let k = 1; k * rs / cam.mpp < mx && k < 40; k++) {
@@ -98,8 +101,8 @@ function drawBodies() {
 }
 
 // прогноз курса: с тягой — сплошная линия, дальше по инерции — пунктир с отметками каждые 10 с
-function drawPrediction() {
-  const { T, h } = PREDICT, pp = predictPath(S.me, T, h), P = pp.pts;
+function drawPrediction(me) {
+  const { T, h } = PREDICT, pp = predictPath(me, T, h), P = pp.pts;
   const line = (i0, i1) => {
     ctx.beginPath();
     for (let i = i0; i <= i1; i++) i > i0 ? ctx.lineTo(X(P[i][0]), Y(P[i][1])) : ctx.moveTo(X(P[i][0]), Y(P[i][1]));
@@ -139,7 +142,7 @@ function drawPrediction() {
 
 // сектор, в который уйдёт облако шариков при выстреле по курсору
 function drawFlakCone() {
-  const me = S.me;
+  const me = myShip();
   if (!run.started || S.over || !pointer.valid || !me.alive || me.flak <= 0 || (COARSE && !pointer.aim)) return;
   const cx = X(me.pos[0]), cy = Y(me.pos[1]);
   const w = screenToWorld(pointer.x, pointer.y), a = Math.atan2(w[1] - me.pos[1], w[0] - me.pos[0]), R = Math.min(30000 / cam.mpp, 5000);
@@ -160,7 +163,7 @@ function drawPellets() {
 
 function drawTorps() {
   for (const t of S.torps) {
-    const col = t.owner === 'me' ? C.me : C.foe;
+    const col = sideCol(t.team);
     ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.beginPath();
     t.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
     ctx.lineTo(X(t.pos[0]), Y(t.pos[1])); ctx.stroke(); ctx.globalAlpha = 1;
@@ -169,8 +172,8 @@ function drawTorps() {
     ctx.fillStyle = t.heat > 5 ? C.plume : col; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, 3.5); ctx.lineTo(-4, -3.5); ctx.closePath(); ctx.fill();
     if (t.acc > 1) { ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(-10, 0); ctx.stroke(); }
     ctx.restore();
-    if (t.owner === 'foe') {
-      const g = timeToImpact(t, S.me);
+    if (t.team !== view.team) {
+      const g = timeToImpact(t, view);
       ctx.fillStyle = col; ctx.textAlign = 'left';
       ctx.fillText((g ? Math.round(g) + ' с' : '—') + ', Δv ' + Math.round(t.fuel) + (t.heat > 5 ? ', нагрев ' + Math.min(99, Math.round(t.heat)) + '%' : ''), X(t.pos[0]) + 9, Y(t.pos[1]) - 9);
     }
@@ -195,13 +198,13 @@ function drawPlume(s) {
   ctx.globalAlpha = 1;
 }
 
-// турели ПОО следят за ближайшей вражеской торпедой, а без неё — за противником
+// турели ПОО следят за ближайшей вражеской торпедой, а без неё — за целью корабля
 function turretAim(s) {
   let best = null, bd = 30000;
-  for (const t of S.torps) if (t.owner !== s.key) { const d = dist(t.pos, s.pos); if (d < bd) { bd = d; best = t.pos; } }
+  for (const t of S.torps) if (t.team !== s.team) { const d = dist(t.pos, s.pos); if (d < bd) { bd = d; best = t.pos; } }
   if (!best) {
-    const o = s.key === 'me' ? S.foe : S.me;
-    if (o.alive && (s.key !== 'me' || S.tracks.me.exact)) best = o.pos;
+    const e = S.ships[s.targetId], tr = e && S.tracks[s.id]?.[e.id];
+    if (e && e.alive && tr && (s.team !== view.team || tr.exact)) best = s.team === view.team ? tr.pos : e.pos;
   }
   return best ? Math.atan2(best[1] - s.pos[1], best[0] - s.pos[0]) : s.heading;
 }
@@ -216,31 +219,50 @@ function drawShip(s, col) {
   ctx.restore();
 }
 
+// подпись у корабля или контакта
+function label(txt, col, x, y) { ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.fillText(txt, x + 14, y + 16); }
+
+// цель своего корабля обведена кольцом с засечками
+function targetMark(x, y) {
+  ctx.strokeStyle = C.foe; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 17, 0, 7); ctx.stroke();
+  ctx.beginPath();
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(x + dx * 13, y + dy * 13); ctx.lineTo(x + dx * 22, y + dy * 22); }
+  ctx.stroke();
+}
+
 function drawShips() {
-  const me = S.me, foe = S.foe, tr = S.tracks.me;
-  drawPlume(me); drawPlume(foe);
-  if (me.alive) drawShip(me, C.me);
-  if (!foe.alive) return;
-  if (tr.exact) {
-    drawShip(foe, C.foe);
-    ctx.fillStyle = C.foe; ctx.textAlign = 'left';
-    ctx.fillText('корпус ' + Math.round(foe.hp) + '%', X(foe.pos[0]) + 14, Y(foe.pos[1]) + 16);
-    return;
+  const me = myShip(), tr = S.tracks[view.id], team = S.ships.length > 2;
+  for (const s of S.ships) if (s.team === view.team || tr[s.id]?.exact) drawPlume(s);
+  for (const s of S.ships) {
+    if (!s.alive) continue;
+    const x = X(s.pos[0]), y = Y(s.pos[1]);
+    if (s.team === view.team) {
+      drawShip(s, s === me ? C.me : C.ally);
+      if (s !== me) label(s.name + (s.ctrl === 'human' ? '' : ', ИИ'), C.ally, x, y);
+      continue;
+    }
+    const t = tr[s.id], isTarget = me.alive && s.id === me.targetId;
+    if (t.exact) {
+      drawShip(s, C.foe);
+      label((team ? s.name + ', ' : '') + 'корпус ' + Math.round(s.hp) + '%', C.foe, x, y);
+      if (isTarget) targetMark(x, y);
+      continue;
+    }
+    // контакт потерян: последняя позиция, ведомая по баллистике, и круг неопределённости
+    const age = S.t - t.seenT, ur = Math.min(80000, 0.5 * 15 * age * age), tx = X(t.pos[0]), ty = Y(t.pos[1]);
+    ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.arc(tx, ty, Math.max(8, ur / cam.mpp), 0, 7); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx + 8, ty); ctx.lineTo(tx, ty + 8); ctx.lineTo(tx - 8, ty); ctx.closePath(); ctx.stroke();
+    label((team ? s.name + ': ' : '') + 'последняя позиция, ' + Math.round(age) + ' с назад', C.foe, tx, ty - 2);
+    if (isTarget) targetMark(tx, ty);
   }
-  // контакт потерян: последняя позиция, ведомая по баллистике, и круг неопределённости
-  const age = S.t - tr.seenT, ur = Math.min(80000, 0.5 * 15 * age * age), tx = X(tr.pos[0]), ty = Y(tr.pos[1]);
-  ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.setLineDash([5, 5]);
-  ctx.beginPath(); ctx.arc(tx, ty, Math.max(8, ur / cam.mpp), 0, 7); ctx.stroke();
-  ctx.setLineDash([]); ctx.globalAlpha = 1;
-  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx + 8, ty); ctx.lineTo(tx, ty + 8); ctx.lineTo(tx - 8, ty); ctx.closePath(); ctx.stroke();
-  ctx.fillStyle = C.foe; ctx.textAlign = 'left';
-  ctx.fillText('последняя позиция, ' + Math.round(age) + ' с назад', tx + 12, ty + 14);
 }
 
 function drawFx() {
   for (const f of S.fx) {
     const u = (S.t - f.t0) / f.dur; if (u < 0 || u > 1) continue;
-    const col = f.kind === 'puff' ? C.flak : f.kind === 'fizz' ? C.ink2 : f.kind === 'melt' ? C.plume : (f.owner === 'me' ? C.me : C.foe);
+    const col = f.kind === 'puff' ? C.flak : f.kind === 'fizz' ? C.ink2 : f.kind === 'melt' ? C.plume : sideCol(f.team);
     const fx0 = X(f.pos[0]), fy0 = Y(f.pos[1]), rr = Math.max(6, f.r * (0.2 + 0.8 * u) / cam.mpp);
     ctx.strokeStyle = col; ctx.globalAlpha = 1 - u; ctx.lineWidth = f.kind === 'boom' ? 3 : 1.5;
     ctx.beginPath(); ctx.arc(fx0, fy0, rr, 0, 7); ctx.stroke();
@@ -266,24 +288,26 @@ function edgeMarker(pos, col, label, big) {
 }
 
 function drawEdgeMarkers() {
-  const me = S.me, foe = S.foe, tr = S.tracks.me;
+  const me = myShip(), tr = S.tracks[view.id];
   for (const b of S.bodies) {
     const bx = X(b.pos[0]), by = Y(b.pos[1]), br = b.r / cam.mpp;
-    if (bx + br < 0 || bx - br > cam.w || by + br < 0 || by - br > cam.h) edgeMarker(b.pos, C.ink2, b.name + ', ' + fmtDist(Math.max(0, dist(me.pos, b.pos) - b.r)));
+    if (bx + br < 0 || bx - br > cam.w || by + br < 0 || by - br > cam.h) edgeMarker(b.pos, C.ink2, b.name + ', ' + fmtDist(Math.max(0, dist(view.pos, b.pos) - b.r)));
   }
   if (me.alive) edgeMarker(me.pos, C.me, 'вы', true);
-  if (foe.alive) {
-    const fp = tr.exact ? foe.pos : tr.pos;
-    edgeMarker(fp, C.foe, (tr.exact ? 'цель, ' : 'цель (устар.), ') + fmtDist(dist(me.pos, fp)), true);
+  for (const s of S.ships) {
+    if (!s.alive || s === me) continue;
+    if (s.team === view.team) { edgeMarker(s.pos, C.ally, s.name); continue; }
+    const t = tr[s.id], p = t.exact ? s.pos : t.pos, isTarget = s.id === me.targetId;
+    edgeMarker(p, C.foe, (isTarget ? 'цель' : s.name) + (t.exact ? ', ' : ' (устар.), ') + fmtDist(dist(view.pos, p)), isTarget);
   }
   for (const t of S.torps) {
-    if (t.owner === 'foe') { const g = timeToImpact(t, me); edgeMarker(t.pos, C.foe, 'торпеда' + (g ? ', ' + Math.round(g) + ' с' : '')); }
-    else edgeMarker(t.pos, C.me, 'своя торпеда');
+    if (t.team !== view.team) { const g = timeToImpact(t, view); edgeMarker(t.pos, C.foe, 'торпеда' + (g ? ', ' + Math.round(g) + ' с' : '')); }
+    else if (t.owner === me.id) edgeMarker(t.pos, C.me, 'своя торпеда');
   }
 }
 
 function drawCaptions() {
-  const W = cam.w, H = cam.h, me = S.me, tr = S.tracks.me;
+  const W = cam.w, H = cam.h, me = view, e = S.ships[me.targetId], tr = e && S.tracks[me.id][e.id];
   if (!cam.follow) {
     ctx.textAlign = 'center'; ctx.fillStyle = C.warn; ctx.font = '500 13px ' + FONT;
     ctx.fillText('Камера свободна: нажмите ⌖ или C, чтобы вернуться к кораблю', W / 2, H - 68);
@@ -291,7 +315,7 @@ function drawCaptions() {
   const sp = Math.hypot(me.vel[0], me.vel[1]) / 1000;
   ctx.textAlign = 'center'; ctx.fillStyle = C.ink; ctx.font = '600 24px ' + FONT;
   ctx.fillText(sp.toFixed(2) + ' км/с', W / 2, H - 40);
-  if (S.foe.alive) {
+  if (e && e.alive && tr) {
     const rx = tr.pos[0] - me.pos[0], ry = tr.pos[1] - me.pos[1], rr = Math.hypot(rx, ry) || 1;
     const cl = -(rx * (tr.vel[0] - me.vel[0]) + ry * (tr.vel[1] - me.vel[1])) / rr / 1000;
     ctx.font = '500 13px ' + FONT; ctx.fillStyle = C.ink2;

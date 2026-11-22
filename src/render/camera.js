@@ -1,13 +1,14 @@
 // Камера карты: масштаб (метров на пиксель), слежение за кораблём или свободный центр
 import { clamp } from '../lib/math.js';
-import { S } from '../sim/index.js';
+import { viewShip } from '../sim/index.js';
 
 // w, h — размер холста в CSS-пикселях; mppT — целевой масштаб, к которому плавно тянется mpp
 export const cam = { w: 300, h: 300, dpr: 1, mpp: 450, mppT: 450, prevMpp: 450, follow: true, c: [0, 0] };
 
 const MPP_MIN = 0.2, MPP_MAX = 3000;
 
-export const camCenter = () => cam.follow ? S.me.pos : cam.c;
+// камера следит за своим кораблём, а после его гибели — за живым союзником
+export const camCenter = () => cam.follow ? viewShip().pos : cam.c;
 
 export function screenToWorld(x, y) {
   const c = camCenter();
@@ -36,6 +37,6 @@ export function toggleShipView() {
 
 // перетаскивание карты: камера отцепляется от корабля и сдвигается на (dx, dy) экранных пикселей
 export function panBy(dx, dy) {
-  if (cam.follow) { cam.c = [S.me.pos[0], S.me.pos[1]]; cam.follow = false; }
+  if (cam.follow) { const p = viewShip().pos; cam.c = [p[0], p[1]]; cam.follow = false; }
   cam.c[0] -= dx * cam.mpp; cam.c[1] += dy * cam.mpp;
 }

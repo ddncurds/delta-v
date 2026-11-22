@@ -19,7 +19,7 @@ class El {
   constructor(id = '', tag = 'div') {
     this.id = id; this.tagName = tag.toUpperCase(); this.style = {}; this.dataset = {};
     this.value = id === 'spread' ? '5' : '0'; this.checked = true; this.hidden = false; this.disabled = false;
-    this.textContent = ''; this.innerHTML = ''; this.className = ''; this.title = ''; this.type = '';
+    this.text = ''; this.innerHTML = ''; this.className = ''; this.title = ''; this.type = '';
     this.width = 300; this.height = 150; this.children = []; this.listeners = {};
     this.firstElementChild = { style: {} };
     const cls = new Set();
@@ -27,6 +27,9 @@ class El {
       toggle: (c, on = !cls.has(c)) => { on ? cls.add(c) : cls.delete(c); return on; } };
     this.ctx = null;
   }
+  // как в браузере: присвоение textContent заменяет детей текстом
+  get textContent() { return this.children.length ? this.children.map(c => c.textContent ?? '').join('') : this.text; }
+  set textContent(v) { this.children = []; this.text = String(v); }
   addEventListener(type, f) { (this.listeners[type] ||= []).push(f); }
   removeEventListener() {}
   dispatch(type, e = {}) {
@@ -54,7 +57,7 @@ const speedBtns = SPEEDS.map(v => { const b = new El('', 'button'); b.dataset.sp
 const winListeners = {};
 
 export const dom = {
-  byId, speedBtns, raf: [],
+  byId, speedBtns, raf: [], clipboard: '',
   // один кадр requestAnimationFrame
   frame(now = performance.now()) { const r = dom.raf; dom.raf = []; r.forEach(f => f(now)); },
   key(code) { for (const f of winListeners.keydown || []) f({ code, target: new El('', 'body'), preventDefault: noop }); },
@@ -70,7 +73,8 @@ Object.assign(globalThis, {
     addEventListener: noop, body: new El('', 'body'), head: new El('', 'head'), hidden: false,
   },
   location: { protocol: 'http:', hash: '', search: '', pathname: '/', origin: 'http://localhost:8080', href: 'http://localhost:8080/' },
-  history: { replaceState: noop },
+  // адрес страницы меняется, как в браузере: тесты проверяют ссылку #room=КОД
+  history: { replaceState: (st, t, url) => { const i = String(url).indexOf('#'); location.hash = i < 0 ? '' : String(url).slice(i); } },
   localStorage: { getItem: () => null, setItem: noop },
   addEventListener: (t, f) => { (winListeners[t] ||= []).push(f); },
   removeEventListener: noop,
@@ -79,3 +83,6 @@ Object.assign(globalThis, {
   ImageData: class { constructor(data, w, h) { this.data = data; this.width = w; this.height = h; } },
   requestAnimationFrame: f => { dom.raf.push(f); return dom.raf.length; },
 });
+// буфер обмена для кнопки «Скопировать ссылку»
+Object.defineProperty(globalThis, 'navigator', { configurable: true,
+  value: { clipboard: { writeText: t => { dom.clipboard = t; return Promise.resolve(); } } } });

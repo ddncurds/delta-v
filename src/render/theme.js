@@ -3,7 +3,7 @@ export const FONT = '"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif
 
 export const C = {
   paper: '#0a1119', ink: '#e2e9ee', ink2: '#8fa1ae', line: '#2a3a46', grid: '#15212b',
-  me: '#5da4ff', foe: '#ff7a5c', warn: '#e6b53c', flak: '#b79dff', plume: '#ffa63a',
+  me: '#5da4ff', ally: '#9fd0ff', foe: '#ff7a5c', warn: '#e6b53c', flak: '#b79dff', plume: '#ffa63a',
 };
 
 // обшивка кораблей

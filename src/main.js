@@ -5,19 +5,18 @@ import { S, newGame, step, setSayHook, nearestThreat, impactIn } from './sim/ind
 import { run } from './run.js';
 import { resizeCamera, fitInitialZoom, easeZoom } from './render/camera.js';
 import { initScene, draw } from './render/scene.js';
-import { $, el } from './ui/dom.js';
+import { $ } from './ui/dom.js';
 import { say } from './ui/toast.js';
 import { initHud, updateHud } from './ui/hud.js';
 import { initControls, setSpeed } from './ui/controls.js';
-import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl } from './net/multiplayer.js';
-import { NET_CFG } from './net/transport.js';
+import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl, netSpeedLimit, autoSlowShips, queueSay } from './net/multiplayer.js';
 import { guestStep } from './net/snapshot.js';
 import { beginBattle, checkResult, initSession } from './session.js';
 
-// сообщения симуляции: свои — на экран, для соперника — в очередь снимка сетевой игры
-setSayHook((txt, key) => {
-  if (key === 'me') say(txt);
-  else if (net.role === 'host' && S.mp && net.sayQ.length < 20) net.sayQ.push(txt);
+// сообщения симуляции: своему кораблю — на экран, кораблям гостей — в очередь их снимков
+setSayHook((txt, id) => {
+  if (id === S.myId) say(txt);
+  else if (net.role === 'host' && S.mp) queueSay(id, txt);
 });
 
 const canvas = $('c');
@@ -39,15 +38,16 @@ newGame();
 setSpeed(1);
 joinFromUrl();
 
-// скорость времени: выбранная игроком (в сети — меньшая из двух), автоматически ниже при угрозах
+// скорость времени: выбранная игроком (в сети — самая медленная из выбранных людьми),
+// автоматически ниже, когда кораблю человека, просившего замедление, грозит торпеда или столкновение
 function timeScale(dtReal) {
-  const base = S.mp ? Math.min(run.chosen, net.peerSpeed, NET_CFG.maxSpeed) : run.chosen;
+  const base = S.mp ? Math.min(run.chosen, netSpeedLimit()) : run.chosen;
   let target = base;
-  for (const [k, on] of [['me', el.autoSlow.checked], ['foe', S.mp && net.peerAuto]]) {
-    if (!on) continue;
-    const th = nearestThreat(k);
+  for (const s of autoSlowShips()) {
+    if (!s.alive) continue;
+    const th = nearestThreat(s);
     if (th) target = Math.min(target, clamp(base * th.ttg / 70, 0.5, base));
-    const imp = impactIn(k, 90);
+    const imp = impactIn(s, 90);
     if (imp) target = Math.min(target, clamp(base * imp.hitT / 40, 0.5, base));
   }
   run.scale += (target - run.scale) * Math.min(1, dtReal * 4);

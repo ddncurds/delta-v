@@ -66,6 +66,21 @@ label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:poin
 .keys dd{margin:0;color:var(--ink-2)}
 .card button.primary{justify-content:center;padding:11px 14px;font-size:17px}
 [hidden]{display:none!important}
+.roster{display:flex;flex-direction:column;gap:8px}
+.roster h3{margin:0;font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.rteams{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.rteam{display:flex;flex-direction:column;gap:4px;min-width:0}
+.rteam h4{margin:0;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:26px}
+.rjoin{padding:2px 8px;font-size:12px;font-weight:500}
+.rslot.picked{outline:1px dashed var(--warn);outline-offset:2px;border-radius:3px}
+.rteam.t0 h4{color:var(--me)}
+.rteam.t1 h4{color:var(--foe)}
+.rslot{display:flex;gap:6px;align-items:center;font-size:14px;min-height:30px;min-width:0}
+.rslot.off{color:var(--ink-2)}
+.rslot b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rnum{width:12px;color:var(--ink-2);font-size:12px;flex:none}
+.rslot select{flex:1;min-width:0;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.rslot button{padding:3px 8px;font-size:13px}
 .mp{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:14px}
 .mp h3{margin:0;font-size:15px;font-weight:600}
 .mpmenu{display:flex;flex-direction:column;gap:8px}
@@ -86,8 +101,9 @@ label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:poin
 .mtext{font-size:12px;color:var(--ink-2);text-shadow:0 0 4px var(--paper);margin-top:3px;max-width:calc(100% - 110px)}
 .thrrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
 .thrrow input{margin:0}
-.grid4,.times6{display:grid;gap:6px}
+.grid4,.grid5,.times6{display:grid;gap:6px}
 .grid4{grid-template-columns:repeat(4,1fr)}
+.grid5{grid-template-columns:repeat(5,1fr)}
 .times6{grid-template-columns:repeat(6,1fr)}
 .dock button{justify-content:center;text-align:center;min-height:46px;padding:6px 4px;font-size:14px;line-height:1.15}
 .touchhelp{display:none;margin:0;padding-left:18px;color:var(--ink-2)}
@@ -109,4 +125,5 @@ label.chk{display:flex;gap:8px;align-items:center;color:var(--ink-2);cursor:poin
   .app{grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:minmax(0,1fr)}
   .dock{overflow-y:auto;border-top:0;border-left:1px solid var(--line)}
   .grid4{grid-template-columns:repeat(2,1fr)}
+  .grid5{grid-template-columns:repeat(3,1fr)}
 }
