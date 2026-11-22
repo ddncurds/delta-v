@@ -3,7 +3,7 @@ import { G0, SHIP, FLAK, D2R } from '../config.js';
 import { t } from '../i18n.js';
 import { clamp, dist } from '../lib/math.js';
 import { fmtDist, fmtClock } from '../lib/format.js';
-import { S, reactionDelay, nearestThreat, gravAt, mainBody, impactIn, myShip, viewShip, teamCount } from '../sim/index.js';
+import { S, reactionDelay, nearestThreat, gravAt, mainBody, impactIn, myShip, viewShip, teamCount, shownPos } from '../sim/index.js';
 import { run } from '../run.js';
 import { cam } from '../render/camera.js';
 import { net, pauseLabel } from '../net/multiplayer.js';
@@ -80,7 +80,7 @@ function contactText(me) {
   }
   const e = S.ships[me.targetId], tr = e && S.tracks[me.id][e.id];
   if (!tr || !e.alive) return t('hud.noTarget');
-  const d = (dist(me.pos, tr.pos) / 1000).toFixed(0), who = S.ships.length > 2 ? t('hud.targetOf', { name: e.name }) : '';
+  const d = (dist(me.pos, shownPos(tr)) / 1000).toFixed(0), who = S.ships.length > 2 ? t('hud.targetOf', { name: e.name }) : '';
   const txt = tr.exact ? t('hud.contact', { d, hp: Math.round(e.hp) }) : t('hud.lost', { ago: S.t - tr.seenT, d });
   return who ? who + txt : txt[0].toUpperCase() + txt.slice(1);
 }

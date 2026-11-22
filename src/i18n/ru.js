@@ -75,7 +75,7 @@ export default {
   'msg.noDodge': 'Уклоняться не от чего', 'msg.dodge': 'Уклонение: 6 g, 5 с', 'msg.plume': 'Выхлоп на цель: 7 g, 6 с',
   'msg.allyCrashed': 'Союзник {name} разбился о {body}', 'msg.enemyCrashed': 'Противник {name} разбился о {body}',
   'msg.noLead': 'Нет торпед для упреждения', 'msg.noTarget': 'Нет цели',
-  'msg.contact': 'Контакт: двигатель корабля {name}', 'msg.contactLost': 'Контакт потерян: {name} идёт по инерции',
+  'msg.contact': 'Контакт: двигатель корабля {name}', 'msg.contactHidden': 'Контакт потерян: {body} закрывает {name}', 'msg.contactLost': 'Контакт потерян: {name} идёт по инерции',
   'msg.target': 'Цель: {name}', 'msg.aim': 'Коснитесь карты: куда выпустить облако',
 
   // итог

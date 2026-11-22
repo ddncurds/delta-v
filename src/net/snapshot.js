@@ -36,7 +36,7 @@ export function makeSnapshot(id, sync, { scale, pauseReason, ack, say, result })
   const pd = S.hitLog.filter(h => h[2] > sync.hitSeq).map(h => [h[0], h[1]]);
   sync.hitSeq = S.hitSeq;
   const m = { type: 'snap', t: S.t, sc: scale, pa: pauseReason, ack, ships, eye: eye.id,
-    tr: tr.map(t => t && { pos: t.pos, vel: t.vel, seenT: t.seenT, exact: t.exact }),
+    tr: tr.map(t => t && { pos: t.pos, vel: t.vel, ...(t.exact ? {} : { seen: t.seen, sv: t.sv }), seenT: t.seenT, exact: t.exact }),
     torps: S.torps.map(t => ({ id: t.id, owner: t.owner, team: t.team, target: t.target, pos: t.pos, vel: t.vel, fuel: t.fuel, heat: t.heat, acc: t.acc })),
     // взрыв уходит событием: скорость, сила, курс корпуса и seed — искры и обломки гость строит сам
     fx: fx.map(f => ({ id: f.id, kind: f.kind, pos: f.pos, t0: f.t0, dur: f.dur, r: f.r, team: f.team,

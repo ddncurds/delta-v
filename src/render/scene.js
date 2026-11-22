@@ -3,7 +3,7 @@
 import { G0, FLAK, PLUME, SHIP, DETECT, FX_CONFIG } from '../config.js';
 import { dist } from '../lib/math.js';
 import { fmtDist } from '../lib/format.js';
-import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip } from '../sim/index.js';
+import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip, shownPos } from '../sim/index.js';
 import { run } from '../run.js';
 import { pointer, COARSE } from '../ui/pointer.js';
 import { C, FONT, FX_COL } from './theme.js';
@@ -383,8 +383,9 @@ function drawShips() {
       if (isTarget) targetMark(x, y, Math.max(17, half + 4));
       continue;
     }
-    // контакт потерян: «дышащая» зона вероятности вокруг последней позиции, ведомой по баллистике
-    const age = S.t - t.seenT, ur = Math.min(80000, 0.5 * 15 * age * age), tx = X(t.pos[0]), ty = Y(t.pos[1]);
+    // контакт потерян: отметка стоит там, где корабль видели последний раз (не по баллистике — иначе она
+    // ехала бы за невидимым кораблём), вокруг «дышит» зона неопределённости, штрих — куда он тогда летел
+    const sp = shownPos(t), age = S.t - t.seenT, ur = Math.min(80000, 0.5 * 15 * age * age), tx = X(sp[0]), ty = Y(sp[1]);
     const R = Math.max(8, ur / cam.mpp), breath = 1 + 0.15 * Math.sin(clock.real * 2 * Math.PI / 3);
     if (R > 10) {
       const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, R);
@@ -394,6 +395,12 @@ function drawShips() {
     ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.setLineDash([5, 5]);
     ctx.beginPath(); ctx.arc(tx, ty, R, 0, 7); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
+    if (t.sv && Math.hypot(t.sv[0], t.sv[1]) > 1) {
+      const a = Math.atan2(t.sv[1], t.sv[0]);
+      ctx.globalAlpha = 0.5; ctx.setLineDash([3, 4]); ctx.beginPath();
+      ctx.moveTo(tx + Math.cos(a) * 10, ty - Math.sin(a) * 10); ctx.lineTo(tx + Math.cos(a) * 34, ty - Math.sin(a) * 34); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
     ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx + 8, ty); ctx.lineTo(tx, ty + 8); ctx.lineTo(tx - 8, ty); ctx.closePath(); ctx.stroke();
     label((team ? s.name + ': ' : '') + txt('map.lastPos', { ago: age }), C.foe, tx, ty - 2);
     if (isTarget) targetMark(tx, ty);
@@ -421,7 +428,7 @@ function drawEdgeMarkers() {
   for (const s of S.ships) {
     if (!s.alive || s === me) continue;
     if (s.team === view.team) { edgeMarker(s.pos, C.ally, s.name); continue; }
-    const t = tr[s.id], p = t.exact ? s.pos : t.pos, isTarget = s.id === me.targetId;
+    const t = tr[s.id], p = t.exact ? s.pos : shownPos(t), isTarget = s.id === me.targetId;
     edgeMarker(p, C.foe, (isTarget ? txt('map.target') : s.name) + (t.exact ? ', ' : txt('map.stale') + ', ') + fmtDist(dist(view.pos, p)), isTarget);
   }
   for (const t of S.torps) {
@@ -439,7 +446,7 @@ function drawCaptions() {
   const sp = Math.hypot(me.vel[0], me.vel[1]) / 1000;
   ctx.textAlign = 'center'; ctx.fillStyle = C.ink; ctx.font = '600 24px ' + FONT;
   ctx.fillText(sp.toFixed(2) + ' ' + txt('u.kms'), W / 2, H - 40);
-  if (e && e.alive && tr) {
+  if (e && e.alive && tr && tr.exact) {
     const rx = tr.pos[0] - me.pos[0], ry = tr.pos[1] - me.pos[1], rr = Math.hypot(rx, ry) || 1;
     const cl = -(rx * (tr.vel[0] - me.vel[0]) + ry * (tr.vel[1] - me.vel[1])) / rr / 1000;
     ctx.font = '500 13px ' + FONT; ctx.fillStyle = C.ink2;

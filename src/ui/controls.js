@@ -1,7 +1,7 @@
 // Управление: приказы кораблю, указатель и жесты на карте, кнопки, клавиатура, скорость времени и пауза
 import { SHIP, D2R } from '../config.js';
 import { clamp, dist } from '../lib/math.js';
-import { S, issue, myShip, enemiesOf } from '../sim/index.js';
+import { S, issue, myShip, enemiesOf, shownPos } from '../sim/index.js';
 import { run } from '../run.js';
 import { cam, screenToWorld, zoomBy, zoomTo, recenter, toggleShipView, panBy } from '../render/camera.js';
 import { net, netSend } from '../net/multiplayer.js';
@@ -26,7 +26,7 @@ function order(type, val) {
 // живые противники по удалённости, как их видит свой корабль
 function enemiesByRange() {
   const me = myShip(), tr = S.tracks[me.id];
-  return enemiesOf(me).filter(e => e.alive && tr[e.id]).sort((a, b) => dist(me.pos, tr[a.id].pos) - dist(me.pos, tr[b.id].pos));
+  return enemiesOf(me).filter(e => e.alive && tr[e.id]).sort((a, b) => dist(me.pos, shownPos(tr[a.id])) - dist(me.pos, shownPos(tr[b.id])));
 }
 
 // следующая цель: по кругу от ближней к дальней
@@ -44,7 +44,7 @@ function nextTarget() {
 function contactAt(x, y) {
   const me = myShip(), tr = S.tracks[me.id], w = screenToWorld(x, y);
   let best = null, bd = 22 * cam.mpp;
-  for (const e of enemiesByRange()) { const d = dist(w, tr[e.id].pos); if (d < bd) { bd = d; best = e; } }
+  for (const e of enemiesByRange()) { const d = dist(w, shownPos(tr[e.id])); if (d < bd) { bd = d; best = e; } }
   return best;
 }
 
@@ -60,7 +60,7 @@ const cmd = {
   flak() {
     if (!canIssue()) return;
     const me = myShip(), tr = S.tracks[me.id][me.targetId];
-    const p = pointer.valid ? screenToWorld(pointer.x, pointer.y) : tr ? tr.pos : null;
+    const p = pointer.valid ? screenToWorld(pointer.x, pointer.y) : tr ? shownPos(tr) : null;
     if (p) order('flak', Math.atan2(p[1] - me.pos[1], p[0] - me.pos[0]));
   },
   dodge: () => canIssue() && order('dodge'),

@@ -28,8 +28,23 @@ export function nearestThreat(s) {
   return best ? { t: best, ttg: bt } : null;
 }
 
+// pos/vel — оценка по баллистике (для ИИ и наведения торпед), seen/sv — где и с какой скоростью корабль видели в последний раз
+// (это показываем игроку: без маневров оценка совпала бы с кораблём и выдала бы его).
 // flak — когда наблюдатель видел выстрелы облаком этого корабля (время боя, с)
-export const newTrack = e => ({ pos: [e.pos[0], e.pos[1]], vel: [e.vel[0], e.vel[1]], seenT: 0, exact: true, flak: [] });
+export const newTrack = e => ({ pos: [e.pos[0], e.pos[1]], vel: [e.vel[0], e.vel[1]], seen: [e.pos[0], e.pos[1]], sv: [e.vel[0], e.vel[1]], seenT: 0, exact: true, flak: [] });
+
+// точка контакта для интерфейса: при потерянном контакте — последняя замеченная позиция
+export const shownPos = tr => tr.exact || !tr.seen ? tr.pos : tr.seen;
+
+// тело между точками a и b заслоняет прямую видимость
+export function occluded(a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+  for (const c of S.bodies) {
+    const k = Math.max(0, Math.min(1, ((c.pos[0] - a[0]) * dx + (c.pos[1] - a[1]) * dy) / L2));
+    if (Math.hypot(a[0] + dx * k - c.pos[0], a[1] + dy * k - c.pos[1]) < c.r) return c;
+  }
+  return null;
+}
 
 // корабль s выстрелил облаком: выстрел замечают враги, которые видят его прямо сейчас
 export function noteFlak(s) {
@@ -82,12 +97,14 @@ export function updateTracks(dt) {
     for (const e of S.ships) {
       const tr = S.tracks[o.id][e.id];
       if (!tr || !e.alive) continue;
-      const vis = o.alive && (e.accG > 0.3 || dist(o.pos, e.pos) < DETECT);
+      // планета или луна на линии взгляда скрывает корабль даже с работающим двигателем
+      const hid = o.alive ? occluded(o.pos, e.pos) : null;
+      const vis = o.alive && !hid && (e.accG > 0.3 || dist(o.pos, e.pos) < DETECT);
       if (vis) {
         if (!tr.exact && o.targetId === e.id) sayTo(o.id, 'msg.contact', { name: e.name });
-        tr.pos = [e.pos[0], e.pos[1]]; tr.vel = [e.vel[0], e.vel[1]]; tr.seenT = S.t; tr.exact = true;
+        tr.pos = [e.pos[0], e.pos[1]]; tr.vel = [e.vel[0], e.vel[1]]; tr.seen = [e.pos[0], e.pos[1]]; tr.sv = [e.vel[0], e.vel[1]]; tr.seenT = S.t; tr.exact = true;
       } else {
-        if (tr.exact && o.alive && o.targetId === e.id) sayTo(o.id, 'msg.contactLost', { name: e.name });
+        if (tr.exact && o.alive && o.targetId === e.id) sayTo(o.id, hid ? 'msg.contactHidden' : 'msg.contactLost', hid ? { name: e.name, body: hid.name } : { name: e.name });
         tr.exact = false;
         const g = gravAt(tr.pos[0], tr.pos[1]);
         tr.vel[0] += g[0] * dt; tr.vel[1] += g[1] * dt;

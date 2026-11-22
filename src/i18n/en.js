@@ -75,7 +75,7 @@ export default {
   'msg.noDodge': 'Nothing to dodge', 'msg.dodge': 'Dodging: 6 g, 5 s', 'msg.plume': 'Exhaust at target: 7 g, 6 s',
   'msg.allyCrashed': 'Ally {name} crashed into {body}', 'msg.enemyCrashed': 'Enemy {name} crashed into {body}',
   'msg.noLead': 'No torpedoes to lead', 'msg.noTarget': 'No target',
-  'msg.contact': 'Contact: engine of {name}', 'msg.contactLost': 'Contact lost: {name} is coasting',
+  'msg.contact': 'Contact: engine of {name}', 'msg.contactHidden': 'Contact lost: {body} blocks {name}', 'msg.contactLost': 'Contact lost: {name} is coasting',
   'msg.target': 'Target: {name}', 'msg.aim': 'Tap the map: where to fire the cloud',
 
   // results
