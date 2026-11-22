@@ -1,6 +1,7 @@
 // Звёздный фон с параллаксом: три слоя смещаются с разной скоростью
 import { hash3 } from '../lib/noise.js';
 import { cam } from './camera.js';
+import { glowSprite, drawGlow } from './glow.js';
 
 // k: сдвиг звёзд в px на метр при полёте корабля; f: доля сдвига карты при перетаскивании (px на px)
 const LAYERS = [{ k: 0.004, f: 0.05, n: 16, s: 1, a: 0.45 }, { k: 0.012, f: 0.12, n: 9, s: 1.4, a: 0.65 }, { k: 0.03, f: 0.22, n: 4, s: 2, a: 0.9 }];
@@ -35,6 +36,8 @@ export function drawStars(ctx, W, H) {
       ctx.fillStyle = COLORS[Math.floor(b * 7) % 3];
       const sz = L.s * (b > 0.9 ? 1.6 : 1);
       ctx.fillRect(Math.round(x), Math.round(y), sz, sz);
+      // самые яркие звёзды светятся мягким ореолом
+      if (b > 0.97) drawGlow(ctx, glowSprite(COLORS[Math.floor(b * 7) % 3], 8), x + sz / 2, y + sz / 2, 4 + (b - 0.97) / 0.03 * 2, 0.45 * L.a);
     }
   });
   ctx.globalAlpha = 1;

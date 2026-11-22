@@ -1,18 +1,31 @@
 // Камера карты: масштаб (метров на пиксель), слежение за кораблём или свободный центр
 import { clamp } from '../lib/math.js';
 import { viewShip } from '../sim/index.js';
+import { reducedMotion } from './clock.js';
 
 // w, h — размер холста в CSS-пикселях; mppT — целевой масштаб, к которому плавно тянется mpp
-export const cam = { w: 300, h: 300, dpr: 1, mpp: 450, mppT: 450, prevMpp: 450, follow: true, c: [0, 0] };
+// shake — амплитуда тряски, px; (sx, sy) — смещение картинки в этом кадре
+export const cam = { w: 300, h: 300, dpr: 1, mpp: 450, mppT: 450, prevMpp: 450, follow: true, c: [0, 0], shake: 0, sx: 0, sy: 0 };
 
 const MPP_MIN = 0.2, MPP_MAX = 3000;
 
 // камера следит за своим кораблём, а после его гибели — за живым союзником
 export const camCenter = () => cam.follow ? viewShip().pos : cam.c;
 
+// точка мира под экранной точкой (x, y) с учётом тряски: клик попадает туда, что игрок видит
 export function screenToWorld(x, y) {
   const c = camCenter();
-  return [c[0] + (x - cam.w / 2) * cam.mpp, c[1] - (y - cam.h / 2) * cam.mpp];
+  return [c[0] + (x - cam.sx - cam.w / 2) * cam.mpp, c[1] - (y - cam.sy - cam.h / 2) * cam.mpp];
+}
+
+// тряска камеры: берётся наибольшая из одновременных, затухает почти до нуля за 0,4 с реального времени
+export function addShake(a) { if (!reducedMotion()) cam.shake = Math.max(cam.shake, a); }
+
+export function updateShake(dtReal) {
+  cam.shake = reducedMotion() ? 0 : cam.shake * Math.exp(-dtReal * 7.5);
+  if (cam.shake < 0.05) { cam.shake = cam.sx = cam.sy = 0; return; }
+  const a = Math.random() * 2 * Math.PI, r = cam.shake * Math.sqrt(Math.random());
+  cam.sx = Math.cos(a) * r; cam.sy = Math.sin(a) * r;
 }
 
 export function resizeCamera(w, h, dpr) { cam.w = w; cam.h = h; cam.dpr = dpr; }

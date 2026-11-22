@@ -9,14 +9,16 @@ const mirrorY = top => top.concat(top.slice().reverse().map(([x, y]) => [x, -y])
 const flipY = pts => pts.map(([x, y]) => [x, -y]);
 
 function path(ctx, pts) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); }
-function fill(ctx, pts, style, alpha = 1) { ctx.globalAlpha = alpha; ctx.fillStyle = style; path(ctx, pts); ctx.fill(); ctx.globalAlpha = 1; }
+// A — общая прозрачность корабля (приглушение на выбеге, переход силуэт ↔ модель)
+let A = 1;
+function fill(ctx, pts, style, alpha = 1) { ctx.globalAlpha = alpha * A; ctx.fillStyle = style; path(ctx, pts); ctx.fill(); ctx.globalAlpha = A; }
 function both(ctx, pts, style, alpha) { fill(ctx, pts, style, alpha); fill(ctx, flipY(pts), style, alpha); }
-function rect(ctx, x0, y0, x1, y1, style, alpha = 1) { ctx.globalAlpha = alpha; ctx.fillStyle = style; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = 1; }
+function rect(ctx, x0, y0, x1, y1, style, alpha = 1) { ctx.globalAlpha = alpha * A; ctx.fillStyle = style; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = A; }
 function line(ctx, x0, y0, x1, y1, style, w, alpha = 1) {
-  ctx.globalAlpha = alpha; ctx.strokeStyle = style; ctx.lineWidth = w;
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.globalAlpha = alpha * A; ctx.strokeStyle = style; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.globalAlpha = A;
 }
-function dot(ctx, x, y, r, style, alpha = 1) { ctx.globalAlpha = alpha; ctx.fillStyle = style; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
+function dot(ctx, x, y, r, style, alpha = 1) { ctx.globalAlpha = alpha * A; ctx.fillStyle = style; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.globalAlpha = A; }
 
 // объёмная заливка корпуса: верхний борт светлее
 function hullShade(ctx, w) {
@@ -147,11 +149,28 @@ function navLights(ctx, x, y, on) {
   dot(ctx, x, -y, 0.009, '#5dff8a', on ? 1 : 0.25);
 }
 
-// корабль s в точке (x, y) экрана; Lp — длина корпуса в пикселях; aim — мировой угол, куда смотрят турели
-export function drawShipModel(ctx, s, col, Lp, x, y, aim) {
+// корабль s в точке (x, y) экрана; Lp — длина корпуса в пикселях; aim — мировой угол, куда смотрят турели;
+// alpha — общая прозрачность
+export function drawShipModel(ctx, s, col, Lp, x, y, aim, alpha = 1) {
   const d = aim - s.heading;
   const o = { col, px: 1 / Lp, hot: Math.min(1, s.accG / 2), look: [Math.cos(d), -Math.sin(d)], blink: Math.floor(performance.now() / 700) % 2 === 0 };
-  ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(Lp, Lp);
+  A = alpha;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(Lp, Lp); ctx.globalAlpha = A;
   (s.team === 0 ? drawRocinante : drawFrigate)(ctx, o);
   ctx.restore();
+  A = 1;
+}
+
+// силуэт корабля для мелкого масштаба: корпус цветом стороны, тёмный контур 1 px и факел по тяге.
+// Корвет и фрегат различаются формой, а не только цветом
+export function drawShipIcon(ctx, s, col, lenPx, x, y, alpha = 1) {
+  const hot = Math.min(1, s.accG / 2), M = s.team === 0 ? ROCI : FRIGATE;
+  A = alpha;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(lenPx, lenPx); ctx.globalAlpha = A;
+  if (s.team === 0) { flame(ctx, -0.535, 0, 0.075, hot); fill(ctx, ROCI.bell, HULL.engine); }
+  else for (const sg of [1, -1]) { flame(ctx, -0.555, sg * 0.08, 0.045, hot); fill(ctx, sg > 0 ? FRIGATE.bell : flipY(FRIGATE.bell), HULL.engine); }
+  fill(ctx, M.hull, col, 0.9);
+  ctx.strokeStyle = HULL.seam; ctx.lineWidth = 1 / lenPx; path(ctx, M.hull); ctx.stroke();
+  ctx.restore();
+  A = 1;
 }

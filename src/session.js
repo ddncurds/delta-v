@@ -3,7 +3,7 @@ import { S, newGame, myShip, teamCount } from './sim/index.js';
 import { t } from './i18n.js';
 import { fmtClock } from './lib/format.js';
 import { run } from './run.js';
-import { cam } from './render/camera.js';
+import { cam, camCenter } from './render/camera.js';
 import { resetStars } from './render/stars.js';
 import { $, el } from './ui/dom.js';
 import { say, hideToast } from './ui/toast.js';
@@ -47,7 +47,25 @@ export function renderOverlay() {
     dv: Math.round(me.fuel), launched: st.launched, kills: st.kills });
 }
 
+// перед итогом карта мягко приближается к последнему взрыву, если он рядом с центром камеры
+// и игрок сам не приблизился сильнее; после показа итога масштаб возвращается
+const FINAL_MPP = 60;
+export const RESULT_DELAY = 1800;  // мс от конца боя до окна итога
+let finalZoom = null;
+
+function zoomToFinal() {
+  finalZoom = null;
+  const boom = [...S.fx].reverse().find(f => f.kind === 'boom'), c = camCenter();
+  if (!boom || cam.mppT <= FINAL_MPP) return;
+  const reach = Math.min(cam.w, cam.h) / 2 * FINAL_MPP * 0.8;
+  if (Math.hypot(boom.pos[0] - c[0], boom.pos[1] - c[1]) > reach) return;
+  finalZoom = { prev: cam.mppT };
+  cam.mppT = FINAL_MPP;
+}
+
 function showResult() {
+  if (finalZoom && cam.mppT === FINAL_MPP) cam.mppT = finalZoom.prev;
+  finalZoom = null;
   renderOverlay();
   $('ovKeys').hidden = true; $('ovTouch').hidden = true;
   el.overlay.hidden = false;
@@ -56,11 +74,12 @@ function showResult() {
   else if (net.role === 'guest') mpStatus('guest.waitNew', { host: net.hostNick });
 }
 
-// бой закончился: итог показываем с небольшой паузой, чтобы успел отыграть взрыв
+// бой закончился: итог показываем с паузой, чтобы успел отыграть взрыв
 export function checkResult() {
   if (!S.over || S.reported) return;
   S.reported = true;
-  setTimeout(showResult, 900);
+  zoomToFinal();
+  setTimeout(showResult, RESULT_DELAY);
 }
 
 export function initSession() {

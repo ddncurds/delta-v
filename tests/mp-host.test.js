@@ -274,7 +274,7 @@ test('бой окончен — каждый гость получает ито�
 });
 
 test('«Новый бой»: хост начинает заново с теми же гостями', async () => {
-  await wait(1000); dom.frame();
+  await wait(1900); dom.frame(); // окно итога появляется через RESULT_DELAY (session.js)
   assert.equal($('overlay').hidden, false);
   assert.equal($('ovBtn').hidden, false);
   assert.equal($('ovBtn').textContent, 'Новый бой');

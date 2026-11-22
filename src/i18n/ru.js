@@ -54,7 +54,7 @@ export default {
   'map.sec': '{t} с', 'map.collision': 'столкновение через {s|s} с', 'map.minAlt': 'мин. высота {alt|d}, {s|s} с',
   'map.torp': '{eta}, Δv {dv|s}', 'map.heat': ', нагрев {h}%', 'map.ai': ', ИИ', 'map.hull': 'корпус {hp}%',
   'map.lastPos': 'последняя позиция, {ago|s} с назад', 'map.you': 'вы', 'map.target': 'цель', 'map.stale': ' (устар.)',
-  'map.torpedo': 'торпеда', 'map.ownTorp': 'своя торпеда',
+  'map.torpedo': 'торпеда', 'map.ownTorp': 'своя торпеда', 'map.detect': 'обнаружение',
   'map.freeCam': 'Камера свободна: нажмите ⌖ или C, чтобы вернуться к кораблю',
   'map.closing': 'сближение с целью {v} км/с', 'map.opening': 'расхождение с целью {v} км/с',
 

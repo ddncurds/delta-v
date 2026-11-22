@@ -3,7 +3,8 @@
 // Свет от солнца (LIGHT) запечён в кратеры и наложен поверх тенью ночной стороны
 import { clamp } from '../lib/math.js';
 import { fbm, noise3, rng } from '../lib/noise.js';
-import { LIGHT } from './theme.js';
+import { LIGHT, ATMO, C } from './theme.js';
+import { rgba } from './glow.js';
 
 const hex = s => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
 const stops = list => list.map(([t, c]) => [t, hex(c)]);
@@ -76,8 +77,6 @@ const PAINT = {
 };
 
 const CRATERS = { rock: 80, desert: 55, ice: 10 };
-// атмосфера: цвет свечения у края диска
-const ATMOSPHERE = { terra: '120,180,255', ice: '175,215,255', gas: '235,205,165', desert: '235,160,120' };
 
 function makeCraters(n, rand) {
   const out = [];
@@ -148,12 +147,6 @@ export function drawBody(ctx, b, x, y, r) {
     ctx.fillStyle = '#7d8a96'; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill();
     return;
   }
-  const atm = ATMOSPHERE[b.look];
-  if (atm) {
-    const g = ctx.createRadialGradient(x, y, r * 0.97, x, y, r * 1.09);
-    g.addColorStop(0, `rgba(${atm},0.55)`); g.addColorStop(0.35, `rgba(${atm},0.22)`); g.addColorStop(1, `rgba(${atm},0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.09, 0, 7); ctx.fill();
-  }
   ctx.drawImage(texture(b), x - r, y - r, 2 * r, 2 * r);
   // ночная сторона: тень, сдвинутая от солнца
   const [lx, ly] = LIGHT;
@@ -161,4 +154,31 @@ export function drawBody(ctx, b, x, y, r) {
   g.addColorStop(0, 'rgba(255,248,230,0.10)'); g.addColorStop(0.38, 'rgba(0,0,0,0)');
   g.addColorStop(0.75, 'rgba(3,6,10,0.62)'); g.addColorStop(1, 'rgba(3,6,10,0.95)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  if (ATMO[b.look]) atmosphere(ctx, ATMO[b.look], x, y, r); else rim(ctx, x, y, r);
+}
+
+const SECTORS = 16;
+const LIGHT_A = Math.atan2(LIGHT[1], LIGHT[0]);
+
+// ореол атмосферы поверх диска: кольцо от r до 1,12·r, на дневной стороне вдвое ярче, чем на ночной.
+// Кольцо режется на секторы, яркость сектора плавно меняется с углом к солнцу
+function atmosphere(ctx, col, x, y, r) {
+  const R = r * 1.12;
+  const g = ctx.createRadialGradient(x, y, r * 0.985, x, y, R);
+  g.addColorStop(0, rgba(col, 0.35)); g.addColorStop(0.4, rgba(col, 0.14)); g.addColorStop(1, rgba(col, 0));
+  const op = ctx.globalCompositeOperation;
+  ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g;
+  const da = 2 * Math.PI / SECTORS;
+  for (let i = 0; i < SECTORS; i++) {
+    const a0 = i * da, mid = a0 + da / 2;
+    ctx.globalAlpha = 0.5 + 0.5 * Math.max(0, Math.cos(mid - LIGHT_A));
+    ctx.beginPath(); ctx.arc(x, y, R, a0, a0 + da + 0.01); ctx.arc(x, y, r * 0.985, a0 + da + 0.01, a0, true); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = op;
+}
+
+// тело без атмосферы: тонкая светлая кромка на освещённой стороне
+function rim(ctx, x, y, r) {
+  ctx.strokeStyle = rgba(C.rim, 0.45); ctx.lineWidth = Math.min(1.5, Math.max(0.75, r * 0.02));
+  ctx.beginPath(); ctx.arc(x, y, r - ctx.lineWidth / 2, LIGHT_A - 1.2, LIGHT_A + 1.2); ctx.stroke();
 }

@@ -81,8 +81,9 @@ function simTick() {
 }
 
 function frame() {
-  easeZoom(simTick());
-  draw();
+  const dtReal = simTick();
+  easeZoom(dtReal);
+  draw(dtReal);
   updateHud();
   requestAnimationFrame(frame);
 }

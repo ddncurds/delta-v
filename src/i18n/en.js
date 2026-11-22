@@ -54,7 +54,7 @@ export default {
   'map.sec': '{t} s', 'map.collision': 'collision in {s|s} s', 'map.minAlt': 'min. altitude {alt|d}, {s|s} s',
   'map.torp': '{eta}, Δv {dv|s}', 'map.heat': ', heat {h}%', 'map.ai': ', AI', 'map.hull': 'hull {hp}%',
   'map.lastPos': 'last position, {ago|s} s ago', 'map.you': 'you', 'map.target': 'target', 'map.stale': ' (stale)',
-  'map.torpedo': 'torpedo', 'map.ownTorp': 'own torpedo',
+  'map.torpedo': 'torpedo', 'map.ownTorp': 'own torpedo', 'map.detect': 'detection',
   'map.freeCam': 'Camera is free: press ⌖ or C to return to the ship',
   'map.closing': 'closing with target {v} km/s', 'map.opening': 'opening from target {v} km/s',
 

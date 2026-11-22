@@ -166,7 +166,7 @@ test('хост вышел — бой прерван, гость возвраща
   await wait(20);
   assert.equal(net.role, null);
   assert.equal(sim.S.result, 'Бой прерван: хост вышел');
-  await frames(1); await wait(1000);
+  await frames(1); await wait(1900); // окно итога появляется через RESULT_DELAY (session.js)
   assert.equal($('overlay').hidden, false);
   assert.equal($('ovTitle').textContent, 'Бой прерван');
   assert.equal($('ovBtn').hidden, false, 'можно играть одному');
@@ -209,7 +209,7 @@ test('гость сам выходит из боя — поражение, хо�
   await wait(20);
   assert.equal(host.got('leave').length, leaves + 1);
   assert.equal(sim.S.result, 'Поражение: вы покинули бой');
-  await frames(1); await wait(1000);
+  await frames(1); await wait(1900); // окно итога появляется через RESULT_DELAY (session.js)
   assert.equal($('ovTitle').textContent, 'Поражение');
   assert.deepEqual(errors, []);
 });

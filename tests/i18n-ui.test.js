@@ -81,7 +81,7 @@ test('переключение на русский в бою: страница, 
 test('итог боя переводится при смене языка', async () => {
   for (const s of sim.S.ships) if (s.team === 1) { s.alive = false; s.deathBy = 'torp'; }
   assert.ok(await framesUntil(() => sim.S.over));
-  await wait(1000); dom.frame();
+  await wait(1900); dom.frame(); // окно итога появляется через RESULT_DELAY (session.js)
   assert.equal($('ovTitle').textContent, 'Победа');
   assert.match($('ovText').textContent, /^Победа: корабль противника уничтожен торпедой\. Бой длился/);
   document.querySelectorAll('[data-lang="en"]')[0].click();

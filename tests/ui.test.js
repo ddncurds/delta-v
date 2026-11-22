@@ -168,7 +168,7 @@ test('свой корабль погиб — бой продолжается, к
 test('конец боя показывает итог команды и кнопку нового боя', async () => {
   for (const s of sim.S.ships) if (s.team === 1) s.alive = false;
   assert.ok(await framesUntil(() => sim.S.over), 'бой окончен');
-  await wait(1000); dom.frame();
+  await wait(1900); dom.frame(); // окно итога появляется через RESULT_DELAY (session.js)
   assert.equal($('overlay').hidden, false);
   assert.equal($('ovTitle').textContent, 'Победа');
   assert.match($('ovText').textContent, /все корабли противника уничтожены/);
