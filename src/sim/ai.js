@@ -1,11 +1,11 @@
 // ИИ кораблей: противники в одиночной игре, ведомые и пустые слоты сетевого боя.
 // ИИ знает только то, что видит его корабль: цель выбирает и атакует по своему треку
-import { D2R, FLAK, SHIP } from '../config.js';
+import { D2R, FLAK, SHIP, G0 } from '../config.js';
 import { dist, solveIntercept, wrap } from '../lib/math.js';
 import { S } from './state.js';
 import { startBurn, doDodge, doPlume, awayAngle } from './ship.js';
 import { fireFlak, launchTorp } from './weapons.js';
-import { nearestThreat, targetTrack, pickTarget } from './sensors.js';
+import { nearestThreat, targetTrack, pickTarget, flakLeft } from './sensors.js';
 import { impactIn } from './predict.js';
 import * as baseline from './ai-baseline.js';
 
@@ -14,20 +14,41 @@ export const AI = {
   plumeTtg: [2, 8], plumeP: 1, plumeFuel: 250,   // выхлоп по торпеде: окно ttg, вероятность, минимум топлива
   plumeMargin: 0.5,                               // выхлоп, только если корабль успеет повернуться кормой к торпеде с этим запасом, с
   preAimTtg: 0,                                   // заранее поворачиваться кормой к торпеде без тяги при ttg меньше этого (0 — нет)
-  dodge: true, dodgeTtg: [8, 17],                 // уклонение — только раньше окна выхлопа
+  dodge: false, dodgeTtg: [8, 17],                // уклонение (только раньше окна выхлопа): тратит топливо и уводит на тела
   flakTtg: [5, 28], flakR: 34000, flakEvery: 3.5, flakJit: 1.5,   // облако по торпеде
   shipFlakR: 30000, shipFlakEvery: 4, shipFlakJit: 2, shipFlakMin: 2,   // облако по кораблю: дальность, интервал, разброс, сколько зарядов держать
   nudgeFuel: 700,                                 // ниже этого запаса дистанцию не подправляем
+  nudge: false,                                   // старое подруливание: держать 70–130 км, в середине смещаться вбок
+  close: true, rangeMax: 100000, closeV: 1000,    // сближение: дальше rangeMax выйти на скорость сближения closeV, м/с
+  openMax: 150, manG: 3, manEvery: 8,             // …и если расходимся быстрее openMax; тяга, g; проверка раз в manEvery, с
+  knife: true, knifeRange: 15000, knifeV: 300,   // торпеды кончились — сближаемся до knifeRange и бьём облаком по кораблю
+  // нападение
+  firstSalvo: [12, 27], salvoEvery: [40, 65],     // первый залп и пауза между залпами, с
+  salvoN: 4, salvoGap: 0.5, salvoRange: 180000,  // торпед в залпе, пауза между пусками, с; дальность, м
+  salvoFlakMax: 3,                                // залп — когда у врага, по нашей оценке, не больше стольких зарядов облака
+  salvoExact: false,                              // залп — по точному треку: дальше головки торпеда наводится по треку
+  bait: false,                                    // нет условий для залпа — одна торпеда-приманка вытягивает облако врага
+  salvoWait: 25,                                  // дольше ждать условий нельзя — залп как есть, с
+  salvoEarly: 0,                                  // у врага мало зарядов — залп раньше срока на столько секунд
+  leadLaunch: false,                              // начальный курс торпеды — в точку перехвата
 };
 
-// policy — какой ИИ ведёт корабль: 'baseline' — замороженная версия (ai-baseline.js), иначе текущая; p — правка параметров AI.
+// эталоны для стенда: параметры, при которых текущий ИИ ведёт себя как после этапа 1 (plans/ai.md)
+export const PRESETS = {
+  stage1: { dodge: true, nudge: true, close: false, knife: false, salvoN: 2, salvoGap: 3.5 },
+};
+
+// policy — какой ИИ ведёт корабль: 'baseline' — замороженная версия (ai-baseline.js), имя из PRESETS или текущий ИИ;
+// p — правка параметров AI.
 // Таймеры разнесены случайно, чтобы корабли одной команды не действовали синхронно
 export function newAi(policy = 'new', p = {}) {
   if (policy === 'baseline') return baseline.newAi();
-  return { policy, p: { ...AI, ...p }, nextSalvo: 12 + Math.random() * 15, salvoLeft: 0, salvoAt: 0, nextNudge: 4 + Math.random() * 6,
-    nextFlak: 0, nextGeo: Math.random(), nextRetarget: 8 + Math.random() * 6, plumeTorp: null };
+  const P = { ...AI, ...PRESETS[policy], ...p };
+  return { policy, p: P, nextSalvo: rnd(P.firstSalvo), salvoLeft: 0, salvoAt: 0, forceAt: Infinity, baited: false,
+    nextNudge: 4 + Math.random() * 6, nextMan: 0, nextFlak: 0, nextGeo: Math.random(), nextRetarget: 8 + Math.random() * 6, plumeTorp: null };
 }
 
+const rnd = ([a, b]) => a + Math.random() * (b - a);
 const jitter = deg => (Math.random() * 2 - 1) * deg * D2R;
 const inWin = (x, [a, b]) => x > a && x < b;
 
@@ -41,22 +62,61 @@ export function aiStep(f) {
   const th = nearestThreat(f), tr = targetTrack(f);
   if (th) defend(f, ai, P, th);
   if (!tr) return;
-  if ((!th || th.ttg > 40) && tr.exact && f.flak >= P.shipFlakMin && f.flakCd <= 0 && S.t >= ai.nextFlak && dist(tr.pos, f.pos) < P.shipFlakR) {
+  const knife = P.knife && f.torps === 0;
+  if ((!th || th.ttg > 40) && tr.exact && f.flak >= (knife ? 1 : P.shipFlakMin) && f.flakCd <= 0 && S.t >= ai.nextFlak && dist(tr.pos, f.pos) < P.shipFlakR) {
     fireFlak(f, solveIntercept(f.pos, f.vel, tr.pos, tr.vel, FLAK.speed) + jitter(P.shipFlakJit)); ai.nextFlak = S.t + P.shipFlakEvery;
   }
-  if (ai.salvoLeft > 0 && S.t >= ai.salvoAt) {
-    if (launchTorp(f)) { ai.salvoLeft--; ai.salvoAt = S.t + 3.5; } else ai.salvoLeft = 0;
-  } else if (ai.salvoLeft === 0 && S.t >= ai.nextSalvo && f.torps > 0 && dist(tr.pos, f.pos) < 180000) {
-    ai.salvoLeft = Math.min(2, f.torps); ai.salvoAt = S.t; ai.nextSalvo = S.t + 40 + Math.random() * 25;
-  }
+  attack(f, ai, P, tr);
+  if (knife) closeIn(f, ai, { ...P, rangeMax: P.knifeRange, closeV: P.knifeV, nudgeFuel: P.plumeFuel }, tr, th);
+  else if (P.close) closeIn(f, ai, P, tr, th);
   // держит дистанцию 70–130 км, в середине — смещается вбок
-  if (f.burnEnd < 0 && S.t >= ai.nextNudge && f.fuel > P.nudgeFuel && (!th || th.ttg > 30)) {
+  if (P.nudge && !knife && f.burnEnd < 0 && S.t >= ai.nextNudge && f.fuel > P.nudgeFuel && (!th || th.ttg > 30)) {
     const d = dist(tr.pos, f.pos), base = Math.atan2(tr.pos[1] - f.pos[1], tr.pos[0] - f.pos[0]);
     if (d > 130000) startBurn(f, base, 2, 8);
     else if (d < 70000) startBurn(f, base + Math.PI, 2, 8);
     else startBurn(f, base + (Math.random() < .5 ? 1 : -1) * Math.PI / 2, 1.5, 5);
     ai.nextNudge = S.t + 30 + Math.random() * 20;
   }
+}
+
+// залп из нескольких торпед почти разом: облако врага не успевает сбить всё.
+// Ждём, пока у врага останется мало зарядов (приманка вытягивает их) и трек будет точным, но не дольше salvoWait
+function attack(f, ai, P, tr) {
+  if (ai.salvoLeft > 0) {
+    if (S.t < ai.salvoAt) return;
+    if (fire(f, P, tr)) { ai.salvoLeft--; ai.salvoAt = S.t + P.salvoGap; } else ai.salvoLeft = 0;
+    return;
+  }
+  if (S.t < ai.nextSalvo - P.salvoEarly || f.torps <= 0 || dist(tr.pos, f.pos) > P.salvoRange) return;
+  const low = flakLeft(tr) <= P.salvoFlakMax;
+  if (S.t < ai.nextSalvo && !low) return;
+  const ready = low && (tr.exact || !P.salvoExact);
+  if (ready || S.t >= ai.forceAt) {
+    ai.salvoLeft = Math.min(P.salvoN, f.torps); ai.salvoAt = S.t;
+    ai.nextSalvo = S.t + rnd(P.salvoEvery); ai.forceAt = Infinity; ai.baited = false;
+    return;
+  }
+  if (ai.forceAt === Infinity) ai.forceAt = S.t + P.salvoWait;
+  if (P.bait && !ai.baited && tr.exact && f.torps > P.salvoN) { ai.baited = true; fire(f, P, tr); }
+}
+
+// сближение по треку: враг далеко или уходит — гасим относительную скорость и выходим на сближение со скоростью closeV
+function closeIn(f, ai, P, tr, th) {
+  if (f.burnEnd >= 0 || S.t < ai.nextMan || f.fuel < P.nudgeFuel || (th && th.ttg < 30)) return;
+  ai.nextMan = S.t + P.manEvery;
+  const rx = tr.pos[0] - f.pos[0], ry = tr.pos[1] - f.pos[1], d = Math.hypot(rx, ry) || 1, ux = rx / d, uy = ry / d;
+  const wx = tr.vel[0] - f.vel[0], wy = tr.vel[1] - f.vel[1], open = wx * ux + wy * uy;
+  // уже сближаемся достаточно быстро — не мешаем; близко и не расходимся быстро — тоже
+  if (-open >= P.closeV * 0.8 || (d < P.rangeMax && open < P.openMax)) return;
+  // нужная относительная скорость — сближение closeV по линии; приращение своей скорости dv = w − w'
+  const dx = wx + ux * P.closeV, dy = wy + uy * P.closeV, dv = Math.min(Math.hypot(dx, dy), f.fuel - P.nudgeFuel);
+  if (dv < 50) return;
+  startBurn(f, Math.atan2(dy, dx), P.manG, dv / (P.manG * G0));
+}
+
+// пуск торпеды: прямо на цель или в точку перехвата
+function fire(f, P, tr) {
+  return launchTorp(f, P.leadLaunch ? solveIntercept(f.pos, f.vel, tr.pos, tr.vel, 1500) : undefined);
 }
 
 // защита от ближайшей торпеды th: облако, выхлоп, уклонение

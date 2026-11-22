@@ -1,7 +1,7 @@
 // Обнаружение: каждый корабль видит сам. S.tracks[o][e] — что корабль o знает о вражеском корабле e
 // (для союзников и себя — null). Работающий двигатель видно издалека, корабль по инерции — только вблизи.
 // Потерянный контакт ведём по баллистике с учётом притяжения тел
-import { DETECT } from '../config.js';
+import { DETECT, FLAK } from '../config.js';
 import { dist } from '../lib/math.js';
 import { S, sayTo, enemiesOf } from './state.js';
 import { gravAt } from './bodies.js';
@@ -28,7 +28,32 @@ export function nearestThreat(s) {
   return best ? { t: best, ttg: bt } : null;
 }
 
-export const newTrack = e => ({ pos: [e.pos[0], e.pos[1]], vel: [e.vel[0], e.vel[1]], seenT: 0, exact: true });
+// flak — когда наблюдатель видел выстрелы облаком этого корабля (время боя, с)
+export const newTrack = e => ({ pos: [e.pos[0], e.pos[1]], vel: [e.vel[0], e.vel[1]], seenT: 0, exact: true, flak: [] });
+
+// корабль s выстрелил облаком: выстрел замечают враги, которые видят его прямо сейчас
+export function noteFlak(s) {
+  for (const o of S.ships) {
+    const tr = S.tracks[o.id]?.[s.id];
+    if (!tr || !o.alive || !tr.exact) continue;
+    (tr.flak ||= []).push(S.t);
+    if (tr.flak.length > 20) tr.flak.shift();
+  }
+}
+
+// сколько зарядов облака у корабля по треку tr: замеченные выстрелы и перезарядка (как в stepShip).
+// Незамеченные выстрелы оценка не учитывает
+export function flakLeft(tr) {
+  let n = FLAK.charges, timer = 0, t = 0;
+  const upTo = T => {
+    while (timer > 0 && t + timer <= T) { t += timer; n++; timer = n < FLAK.charges ? FLAK.recharge : 0; }
+    if (timer > 0) timer -= T - t;
+    t = T;
+  };
+  for (const ts of tr.flak || []) { upTo(ts); n = Math.max(0, n - 1); if (timer <= 0) timer = FLAK.recharge; }
+  upTo(S.t);
+  return n;
+}
 
 // треки всех кораблей: на старте все видят всех
 export function initTracks() {

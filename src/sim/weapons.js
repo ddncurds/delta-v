@@ -4,7 +4,7 @@ import { FLAK, TORP, PLUME, D2R } from '../config.js';
 import { clamp, dist, closestDist, solveIntercept } from '../lib/math.js';
 import { S, sayTo, addFx } from './state.js';
 import { gravAt, bodyHit } from './bodies.js';
-import { nearestThreat, targetTrack } from './sensors.js';
+import { nearestThreat, targetTrack, noteFlak } from './sensors.js';
 import { killShip } from './ship.js';
 
 // угол выстрела облаком по ближайшей вражеской торпеде с упреждением; null, если торпед нет
@@ -32,15 +32,17 @@ export function fireFlak(s, ang) {
   }
   s.vel[0] -= Math.cos(base) * FLAK.recoil; s.vel[1] -= Math.sin(base) * FLAK.recoil;
   addFx({ kind: 'puff', pos: [s.pos[0], s.pos[1]], dur: 2, r: 1500, team: s.team });
+  noteFlak(s);
   return true;
 }
 
-export function launchTorp(s) {
+// ang — начальный курс торпеды; по умолчанию прямо на цель по треку
+export function launchTorp(s, ang) {
   if (s.torps <= 0) { sayTo(s.id, 'msg.noTorps'); return false; }
   const tr = targetTrack(s);
   if (!tr) { sayTo(s.id, 'msg.noTorpTarget'); return false; }
   s.torps--; S.stats[s.id].launched++;
-  const ang = Math.atan2(tr.pos[1] - s.pos[1], tr.pos[0] - s.pos[0]);
+  ang ??= Math.atan2(tr.pos[1] - s.pos[1], tr.pos[0] - s.pos[0]);
   S.torps.push({ id: S.nextId++, owner: s.id, team: s.team, target: s.targetId, pos: [s.pos[0], s.pos[1]],
     vel: [s.vel[0] + Math.cos(ang) * 100, s.vel[1] + Math.sin(ang) * 100],
     fuel: TORP.dv, age: 0, alive: true, hits: 0, heat: 0, acc: 0, trail: [], lastTrail: 0 });
