@@ -5,7 +5,7 @@ import './lang-ru.js';
 import { DT } from '../src/config.js';
 import { dist } from '../src/lib/math.js';
 import { S, newGame, step, predictPath, resultFor, gravAt, surfaceG } from '../src/sim/index.js';
-import { paintSphere } from '../src/render/planets.js';
+import { paintSphere, spinAt } from '../src/render/planets.js';
 import { me, foe } from './helpers.js';
 
 // свой корабль в точке p со скоростью v, противник далеко и без ИИ
@@ -64,6 +64,17 @@ test('текстуры тел: диск непрозрачен внутри и �
     assert.equal(px[at(n / 2, n / 2)], 255, look);
     assert.equal(px[at(0, 0)], 0, look);
   }
+});
+
+test('тела вращаются: поворот меняет диск, полный оборот возвращает его; скорость из зерна тела', () => {
+  const a = paintSphere(64, 'terra', 7, 0), b = paintSphere(64, 'terra', 7, 1), c = paintSphere(64, 'terra', 7, 2 * Math.PI);
+  assert.notDeepEqual(a, b);
+  assert.deepEqual(a, c);
+  const body = { kind: 'planet', seed: 42 };
+  assert.equal(spinAt(body, 0), 0);
+  assert.equal(spinAt(body, 300), spinAt({ ...body }, 300));
+  const turn = Math.abs(spinAt(body, 60)) * 180 / Math.PI;
+  assert.ok(turn >= 72 && turn <= 120, `за минуту планета поворачивается на ${turn}°`);
 });
 
 test('новый бой: корабли далеко друг от друга, уже в движении, с полным боезапасом', () => {

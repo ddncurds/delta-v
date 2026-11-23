@@ -179,7 +179,7 @@ function drawBodies() {
     ctx.setLineDash([]); ctx.globalAlpha = 1;
     const m = br * 1.15;
     if (bx + m < 0 || bx - m > cam.w || by + m < 0 || by - m > cam.h) continue;
-    drawBody(ctx, b, bx, by, br);
+    drawBody(ctx, b, bx, by, br, reducedMotion() ? 0 : clock.fx);
     queueLabel(P.ENV, b.name + ', ' + surfaceG(b).toFixed(1) + ' g', bx, by + Math.max(3, br) + 14, C.ink2, 'center');
   }
 }

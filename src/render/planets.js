@@ -1,6 +1,7 @@
-// Процедурные планеты и луны. Текстура — вид на полусферу: для каждого пикселя диска берём точку
-// на единичной сфере (x, y, z) и красим её по трёхмерному шуму, поэтому рисунок ложится на шар без швов.
-// Свет от солнца (LIGHT) запечён в кратеры и наложен поверх тенью ночной стороны
+// Процедурные планеты и луны. Поверхность один раз рисуется в развёртку (долгота × широта): каждой точке
+// единичной сферы (x, y, z) — цвет по трёхмерному шуму, поэтому рисунок ложится на шар без швов.
+// Диск на экране берётся из развёртки со сдвигом по долготе — так тело медленно вращается.
+// Тень рельефа кратеров считается в осях экрана от солнца (LIGHT), поверх ложится тень ночной стороны
 import { clamp } from '../lib/math.js';
 import { fbm, noise3, rng } from '../lib/noise.js';
 import { LIGHT, ATMO, C } from './theme.js';
@@ -88,66 +89,154 @@ function makeCraters(n, rand) {
   return out;
 }
 
-// множитель яркости от кратеров: дно темнее, стенка со стороны солнца в тени, дальняя освещена, вал приподнят
-function craterShade(craters, x, y, z) {
-  let k = 1;
+// рельеф кратера в точке сферы: чаша ниже поверхности, вал вокруг неё приподнят. 0 — вне кратеров
+function craterHeight(craters, x, y, z) {
+  let h = 0;
   for (const c of craters) {
     const dx = x - c.x, dy = y - c.y, dz = z - c.z, d2 = dx * dx + dy * dy + dz * dz;
     if (d2 > c.r * c.r * 1.44) continue;
-    const d = Math.sqrt(d2) / c.r, s = (dx * LIGHT[0] + dy * LIGHT[1]) / c.r;
-    if (d < 1) k *= 0.86 - 0.35 * s;
-    else k *= 1 + 0.6 * s * (1.2 - d);
+    const d = Math.sqrt(d2) / c.r;
+    h += d < 1 ? (d * d - 1) * c.r * 0.5 : c.r * 0.12 * (1.2 - d) / 0.2;
   }
-  return k;
+  return h;
 }
 
-// RGBA-пиксели диска size×size; чистая функция, работает и без DOM
-export function paintSphere(size, look, seed) {
-  const px = new Uint8ClampedArray(size * size * 4);
+// развёртка поверхности w×h: долгота по x, широта по y. Ось вращения тела — вертикаль экрана (y).
+// Цвет без освещения (RGB) и высота рельефа. Чистая функция, работает и без DOM
+export function paintMap(w, h, look, seed) {
+  const rgb = new Uint8ClampedArray(w * h * 3), height = new Float32Array(w * h);
   const rand = rng(seed);
   const paint = PAINT[look] || PAINT.rock;
   const craters = makeCraters(CRATERS[look] || 0, rand);
   const ctx = { phase: rand() * 6, spot: [rand() * 0.8 - 0.4, rand() * 0.9 - 0.45, 0.1 + rand() * 0.08] };
+  for (let j = 0; j < h; j++) {
+    const lat = ((j + 0.5) / h - 0.5) * Math.PI, y = Math.sin(lat), cl = Math.cos(lat);
+    for (let i = 0; i < w; i++) {
+      const lon = (i + 0.5) / w * 2 * Math.PI - Math.PI, x = cl * Math.sin(lon), z = cl * Math.cos(lon);
+      const c = paint(x, y, z, seed, ctx), hh = craters.length ? craterHeight(craters, x, y, z) : 0;
+      // дно кратера темнее окружающей поверхности
+      const k = hh < 0 ? 0.88 : 1, o = j * w + i;
+      rgb[o * 3] = c[0] * k; rgb[o * 3 + 1] = c[1] * k; rgb[o * 3 + 2] = c[2] * k;
+      height[o] = hh;
+    }
+  }
+  return { w, h, rgb, height, relief: craters.length > 0 };
+}
+
+// геометрия диска size×size: для каждого пикселя — место на развёртке без поворота, потемнение к краю и прозрачность
+const discCache = new Map();
+function disc(size, mw, mh) {
+  const key = size + ':' + mw + ':' + mh;
+  let d = discCache.get(key);
+  if (d) return d;
+  const n = size * size, u = new Float32Array(n), v = new Float32Array(n), limb = new Float32Array(n), alpha = new Uint8ClampedArray(n);
   const half = size / 2;
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
-      const x = (i + 0.5) / half - 1, y = (j + 0.5) / half - 1, d2 = x * x + y * y;
+      const x = (i + 0.5) / half - 1, y = (j + 0.5) / half - 1, d2 = x * x + y * y, o = j * size + i;
       if (d2 > 1) continue;
       const z = Math.sqrt(1 - d2);
-      const c = paint(x, y, z, seed, ctx);
-      // потемнение к краю диска придаёт объём
-      const k = craterShade(craters, x, y, z) * (0.62 + 0.38 * Math.sqrt(z));
-      const o = (j * size + i) * 4;
-      px[o] = c[0] * k; px[o + 1] = c[1] * k; px[o + 2] = c[2] * k;
-      px[o + 3] = clamp((1 - Math.sqrt(d2)) * half + 0.5, 0, 1) * 255;
+      u[o] = (Math.atan2(x, z) + Math.PI) / (2 * Math.PI) * mw - 0.5;
+      v[o] = clamp((Math.asin(y) / Math.PI + 0.5) * mh - 0.5, 0, mh - 1);
+      limb[o] = 0.62 + 0.38 * Math.sqrt(z);
+      alpha[o] = clamp((1 - Math.sqrt(d2)) * half + 0.5, 0, 1) * 255;
     }
   }
-  return px;
+  d = { u, v, limb, alpha, h: new Float32Array(n) };
+  discCache.set(key, d);
+  if (discCache.size > 8) discCache.delete(discCache.keys().next().value);
+  return d;
 }
 
-const cache = new Map();
+const RELIEF = 0.55;  // сила тени рельефа
+const LN = Math.hypot(LIGHT[0], LIGHT[1]), LX = LIGHT[0] / LN, LY = LIGHT[1] / LN;
 
-function texture(b) {
-  const key = b.look + ':' + b.seed;
-  let t = cache.get(key);
-  if (!t) {
-    const size = b.kind === 'planet' ? 512 : 256;
-    t = document.createElement('canvas');
-    t.width = t.height = size;
-    t.getContext('2d').putImageData(new ImageData(paintSphere(size, b.look, b.seed), size, size), 0, 0);
-    cache.set(key, t);
-    if (cache.size > 12) cache.delete(cache.keys().next().value);
+// RGBA-пиксели диска size×size из развёртки map, повёрнутой на rot радиан вокруг вертикали.
+// Тень рельефа считается в осях экрана, поэтому свет падает с той же стороны, что и у кораблей.
+// out — массив для результата (переиспользуется между кадрами)
+export function projectMap(map, size, rot, out = new Uint8ClampedArray(size * size * 4)) {
+  const { w, h, rgb, height, relief } = map, d = disc(size, w, h), n = size * size;
+  const shift = (((rot / (2 * Math.PI)) % 1) + 1) % 1 * w;
+  for (let o = 0; o < n; o++) {
+    const a = d.alpha[o];
+    out[o * 4 + 3] = a;
+    if (!a) continue;
+    // билинейная выборка с переходом через линию смены дат
+    let uu = d.u[o] + shift;
+    uu -= Math.floor(uu / w) * w;
+    const i0 = Math.floor(uu), fu = uu - i0, i1 = i0 + 1 === w ? 0 : i0 + 1;
+    const j0 = Math.floor(d.v[o]), fv = d.v[o] - j0, j1 = Math.min(h - 1, j0 + 1);
+    const p00 = j0 * w + i0, p10 = j0 * w + i1, p01 = j1 * w + i0, p11 = j1 * w + i1;
+    const w00 = (1 - fu) * (1 - fv), w10 = fu * (1 - fv), w01 = (1 - fu) * fv, w11 = fu * fv, k = d.limb[o];
+    for (let c = 0; c < 3; c++) out[o * 4 + c] = (rgb[p00 * 3 + c] * w00 + rgb[p10 * 3 + c] * w10 + rgb[p01 * 3 + c] * w01 + rgb[p11 * 3 + c] * w11) * k;
+    if (relief) d.h[o] = height[p00] * w00 + height[p10] * w10 + height[p01] * w01 + height[p11] * w11;
   }
-  return t;
+  if (relief) {
+    // склон к солнцу светлее, от солнца — темнее; уклон в долях радиуса на пиксель
+    const px = size / 2;
+    for (let j = 1; j < size - 1; j++) {
+      for (let i = 1; i < size - 1; i++) {
+        const o = j * size + i;
+        if (!d.alpha[o]) continue;
+        const gx = (d.h[o + 1] - d.h[o - 1]) * px / 2, gy = (d.h[o + size] - d.h[o - size]) * px / 2;
+        const k = clamp(1 - RELIEF * (gx * LX + gy * LY), 0.55, 1.4);
+        out[o * 4] *= k; out[o * 4 + 1] *= k; out[o * 4 + 2] *= k;
+      }
+    }
+  }
+  return out;
 }
 
-// тело с центром (x, y) и радиусом r в экранных пикселях
-export function drawBody(ctx, b, x, y, r) {
+// RGBA-пиксели диска size×size, повёрнутого на rot радиан; чистая функция, работает и без DOM
+export function paintSphere(size, look, seed, rot = 0) {
+  return projectMap(paintMap(Math.max(64, size * 2), Math.max(32, size), look, seed), size, rot);
+}
+
+// вращение тела: период из зерна, у планет 3–5 мин, у лун 5–8 мин; направление тоже из зерна.
+// t — часы рендера clock.fx: реальные секунды без пауз, поэтому скорость не зависит от ускорения времени
+export function spinAt(b, t) {
+  const r = rng(b.seed ^ 0x5f3759df), period = (b.kind === 'planet' ? 180 + 120 * r() : 300 + 180 * r());
+  return (r() < 0.5 ? -1 : 1) * 2 * Math.PI * t / period;
+}
+
+const MAP_W = { planet: 768, moon: 384 };   // ширина развёртки: на диске 512 px видно полразвёртки, 384 точки
+const STEP_PX = 0.5;      // диск пересчитывается, когда точка на экваторе сдвинулась на столько пикселей
+const bodies = new Map();
+
+// текстура тела для экранного радиуса r и угла поворота rot: развёртка рисуется один раз,
+// диск пересчитывается, когда поворот сдвинул экватор на STEP_PX экранных пикселей или изменился размер
+function texture(b, r, rot) {
+  const key = b.look + ':' + b.seed + ':' + b.kind;
+  let e = bodies.get(key);
+  if (!e) {
+    const w = MAP_W[b.kind] || 384;
+    e = { map: paintMap(w, w / 2, b.look, b.seed), size: 0, rot: NaN, cv: null, px: null, img: null };
+    bodies.set(key, e);
+    if (bodies.size > 12) bodies.delete(bodies.keys().next().value);
+  }
+  const maxSize = b.kind === 'planet' ? 512 : 256;
+  const size = Math.min(maxSize, Math.max(64, 2 ** Math.ceil(Math.log2(2 * r))));
+  const turned = !(Math.abs(rot - e.rot) * r < STEP_PX);
+  if (size !== e.size || turned) {
+    if (size !== e.size) {
+      e.cv = document.createElement('canvas'); e.cv.width = e.cv.height = size;
+      // пишем прямо в img.data: некоторые реализации ImageData копируют переданный массив
+      e.img = new ImageData(new Uint8ClampedArray(size * size * 4), size, size); e.px = e.img.data; e.size = size;
+    }
+    projectMap(e.map, size, rot, e.px);
+    e.cv.getContext('2d').putImageData(e.img, 0, 0);
+    e.rot = rot;
+  }
+  return e.cv;
+}
+
+// тело с центром (x, y) и радиусом r в экранных пикселях; t — часы рендера clock.fx: по ним тело вращается
+export function drawBody(ctx, b, x, y, r, t = 0) {
   if (r < 2.5) {
     ctx.fillStyle = '#7d8a96'; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill();
     return;
   }
-  ctx.drawImage(texture(b), x - r, y - r, 2 * r, 2 * r);
+  ctx.drawImage(texture(b, r, spinAt(b, t)), x - r, y - r, 2 * r, 2 * r);
   // ночная сторона: тень, сдвинутая от солнца; терминатор резче, ночь почти чёрная
   const [lx, ly] = LIGHT;
   const g = ctx.createRadialGradient(x + lx * r * 0.55, y + ly * r * 0.55, 0, x + lx * r * 0.3, y + ly * r * 0.3, r * 1.45);
