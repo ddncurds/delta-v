@@ -24,6 +24,8 @@ The entry point is `src/main.js`. It wires the modules together and runs the loo
 - **`src/sim/`**: pure simulation with no DOM. It runs in Node, and the tests drive it directly. `index.js` is the public API. All battle state lives in the single object `S` (`state.js`), exported as a live binding `export let S`. `newGame()` replaces `S` wholesale, so always read `S` through the import and never cache it. Ship id = its index in `S.ships`, and `S.myId` is the locally controlled ship. `world.js` `step(dt)` runs the order AI → delayed orders → ship physics → sensor tracks → torpedoes → flak pellets → plumes → end check.
 - **Sensors/fog of war**: ships and the AI act on per-observer tracks (`S.tracks[observer][target]`, `sensors.js`), not true enemy positions. Engine burns (`accG`) reveal a ship.
 - **Messages are keys, not text**: the sim emits crew messages with `sayTo(id, key, params)`. Results are stored as `[key, params]`. `main.js` translates them for the local ship. The host forwards keys to guests, and each guest translates them into its own language. Never put display strings in sim code. Add keys to both `src/i18n/en.js` and `src/i18n/ru.js`. `t()` in `src/i18n.js` supports `{x}`, `{x|d}` (distance) and `{x|s}` (seconds).
+- **Maneuver planner**: `src/sim/plan.js` `planBurn(ship, [heading, g, seconds])` forecasts a burn on a copy of the ship. It calls the same `endBurnIfDue`/`propel`/`strain` from `ship.js` as `stepShip` and replays the order queue with the crew delay. So the forecast matches the executed `burn` order exactly (`tests/plan.test.js`). It never changes `S`. `src/maneuver.js` holds the draft (no DOM), and `src/ui/planner.js` is the card on the map. Planning works on pause only.
+- **Orders**: validate an order parameter with `orderVal()` (`orders.js`); the host uses it for guest orders. `src/ui/order-log.js` keeps the last order, and `hud.js` shows its state: sent (guest, not acked yet), accepted or "executes in N s", executing, done. A guest gets its own `orders` queue in the snapshot (`SHIP_FULL`) and the host's `ack`.
 - **Balance/config**: all tunables are in `src/config.js`, in SI units (m, s, m/s). Fuel is expressed as Δv.
 - **`src/net/`**: multiplayer over MQTT (flespi broker; the library is loaded at runtime from unpkg). `transport.js` holds the topics and connection, `multiplayer.js` the lobby, host and guest logic, and `snapshot.js` the per-guest snapshots. The **host is authoritative**: it runs the full sim and the AI. Each guest gets a filtered snapshot of what its own ship can see (`SHIP_FULL` vs `SHIP_PUB` fields). Between snapshots the guest extrapolates with `guestStep`. Guests send orders, and guests don't create AI.
 - **Roster** (`src/roster.js`): 2×`TEAM.max` slots (`off`/`ai`/`human`), turned into a `newGame({ roster })` roster. Team 0 is blue and team 1 is red.
@@ -41,3 +43,30 @@ All tests use `node:test` with no browser:
 ## Plans
 
 `plans/` holds the specs (in Russian) for upcoming work: `ai.md` (AI improvements) and `plan_graffics.md` (graphics).
+
+## Project memory
+
+Long-lived project facts live in `memory/` — one durable fact per file, worth remembering across sessions and
+shared with the team. `memory/MEMORY.md` is the index; it is imported below, so open a fact file only when its
+topic comes up. Keep personal `user`/`feedback` memories in your own `~/.claude/projects/.../memory/` instead.
+
+Each fact file uses this frontmatter, with `name` equal to the filename:
+
+```markdown
+---
+name: <short-kebab-case-slug>
+description: <one-line summary — used to judge relevance during recall>
+metadata:
+  type: project | reference
+---
+```
+
+Link related facts with `[[their-name]]`. Don't record what the repo or this file already states. After
+adding a file, add a one-line pointer to `memory/MEMORY.md`.
+
+@memory/MEMORY.md
+
+## Rules
+
+Every `*.md` file in `.claude/rules/` is auto-loaded into context, so a focused instruction or checklist
+placed there applies to all sessions without being repeated here.

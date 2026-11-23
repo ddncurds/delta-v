@@ -2,8 +2,9 @@
 export const FONT = '"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif';
 
 export const C = {
-  paper: '#0a1119', ink: '#e2e9ee', ink2: '#8fa1ae', line: '#2a3a46', grid: '#15212b',
-  me: '#5da4ff', ally: '#9fd0ff', foe: '#ff7a5c', warn: '#e6b53c', flak: '#b79dff', plume: '#ffa63a',
+  paper: '#0a1119', ink: '#e2e9ee', ink2: '#8fa1ae', line: '#24333f', grid: '#101b25',
+  // свой корабль — холодный голубой, противник — коралловый, предупреждения — янтарный, план манёвра — бирюзовый
+  me: '#75c9f3', ally: '#9fd0ff', foe: '#ff7a5c', warn: '#f0b43c', flak: '#b79dff', plume: '#ffa63a', plan: '#5fe0ee',
   // свечение: белое ядро вспышки, тлеющее облако взрыва, облачко залпа, угроза, поле тяжести, кромка безатмосферных тел
   white: '#ffffff', ember: '#ff8a4a', puff: '#a99ac8', threat: '#ff3b30', field: '#7f93a8', rim: '#dfe8f0',
 };

@@ -183,6 +183,26 @@ test('приказы гостя проверяются: тяга не больш
   await frames(3);
 });
 
+test('манёвр по плану от гостя: хост проверяет параметр, очередь приказов уходит в снимке', async () => {
+  const s2 = sim.S.ships[2];
+  s2.stress = 70;
+  g1.say({ type: 'order', seq: 20, o: 'burn', val: [1, 99, 999] });
+  g1.say({ type: 'order', seq: 21, o: 'burn', val: [1, 'x', 5] });
+  g1.say({ type: 'order', seq: 22, o: 'burn', val: 5 });
+  await frames(2);
+  const burns = s2.orders.filter(o => o.type === 'burn');
+  assert.equal(burns.length, 1, 'негодные манёвры отброшены');
+  assert.deepEqual(burns[0].val, [1, SHIP.maxG, 60], 'тяга и длительность ограничены');
+  await wait(120); await frames(1);
+  const snap = g1.last('snap', g1.mine());
+  assert.equal(snap.ack, 22);
+  assert.ok(snap.ships[2].orders.some(o => o.type === 'burn'), 'гость видит свою очередь приказов');
+  assert.equal(g2.last('snap', g2.mine()).ships[2].orders, undefined, 'чужую очередь — нет');
+  s2.orders = []; s2.stress = 0;
+  g1.say({ type: 'order', seq: 23, o: 'throttle', val: 0 });
+  await frames(3);
+});
+
 test('скорость времени в сети — самая медленная из выбранных, ×30 недоступно', async () => {
   assert.equal(dom.speedBtns.filter(b => b.dataset.speed === '30').every(b => b.disabled), true);
   g1.say({ type: 'ping', ts: 1, rtt: 40, v: 3, auto: true });

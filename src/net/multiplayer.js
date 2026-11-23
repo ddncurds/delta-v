@@ -1,8 +1,8 @@
 // Сетевой бой: лобби, хост и гости (до 9). Хост ведёт состав боя и считает симуляцию,
 // гости шлют приказы своим кораблям и рисуют снимки. Пустые места людей и корабли ушедших гостей ведёт ИИ
-import { SHIP, D2R } from '../config.js';
+import { D2R } from '../config.js';
 import { clamp } from '../lib/math.js';
-import { S, newGame, issue, resultOf, endBattle, newAi, ORDER_TYPES, ORDER_VAL } from '../sim/index.js';
+import { S, newGame, issue, resultOf, endBattle, newAi, orderVal } from '../sim/index.js';
 import { t } from '../i18n.js';
 import { run } from '../run.js';
 import { $, el } from '../ui/dom.js';
@@ -217,9 +217,8 @@ function onHostMsg(buf) {
   switch (m.type) {
     case 'order':
       p.ack = Math.max(p.ack, m.seq | 0);
-      if (!run.started || S.over || !s || !s.alive || s.owner !== p.id || !ORDER_TYPES.includes(m.o)) break;
-      if (ORDER_VAL.includes(m.o) && !Number.isFinite(m.val)) break;
-      issue(s.id, m.o, m.o === 'throttle' ? clamp(m.val, 0, SHIP.maxG) : m.val);
+      if (!run.started || S.over || !s || !s.alive || s.owner !== p.id) break;
+      { const val = orderVal(m.o, m.val); if (val !== null) issue(s.id, m.o, val); }
       break;
     case 'spread': if (s && Number.isFinite(m.val)) s.spread = clamp(m.val, 2 * D2R, 10 * D2R); break;
     case 'ping': netSend({ type: 'pong', ts: m.ts }, 0, p.id); if (Number.isFinite(m.rtt)) p.rtt = m.rtt; // fallthrough: в пинге есть и скорость
@@ -251,7 +250,7 @@ export async function guestJoin(code) {
   if (code.length !== 4) { mpStatus('mp.badCode'); return; }
   if (net.role) return;
   lobbyClose();
-  Object.assign(net, { role: 'guest', room: code, id: rid(12), nick: nickVal(), joined: false, synced: false, seq: 0, hostNick: '' });
+  Object.assign(net, { role: 'guest', room: code, id: rid(12), nick: nickVal(), joined: false, synced: false, seq: 0, ack: 0, hostNick: '' });
   mpRender(); mpStatus('mp.joining', { code });
   const id = net.id;
   let c;
@@ -284,7 +283,7 @@ function onGuestMsg(buf) {
       if (!net.joined) break;
       const roster = netRoster(m.roster), myId = roster ? roster.findIndex(r => r.owner === net.id) : -1;
       if (myId < 0) { mpStatus('mp.notInRoster'); break; }
-      net.synced = false; net.seq = 0;
+      net.synced = false; net.seq = net.ack = 0;
       newGame({ mp: true, guest: true, roster, myId, bodies: netBodies(m.bodies) }); mpStatus('mp.sync');
       break;
     }
@@ -297,7 +296,8 @@ function onGuestMsg(buf) {
 function applySnap(m) {
   if (!net.joined || !S.mp) return;
   if (!net.synced) { net.synced = true; hooks.beginBattle(t('mp.begun', { name: S.ships[S.myId].name })); }
-  applySnapshot(m, (m.ack | 0) < net.seq);
+  net.ack = m.ack | 0;
+  applySnapshot(m, net.ack < net.seq);
   // сообщения экипажу приходят ключами: переводим на свой язык
   for (const x of m.say || []) if (Array.isArray(x)) say(t(String(x[0]), x[1] || {}));
   net.snapScale = run.scale = m.sc; net.pauseReason = m.pa || ''; net.pauseNick = m.pn || ''; run.paused = !!m.pa;

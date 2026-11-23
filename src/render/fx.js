@@ -38,16 +38,19 @@ export const fxParticles = () => parts;
 export const fxAge = (r, now = clock.fx) => now - r.born;
 export const fxAlive = (r, now = clock.fx) => now - r.born < life(r);
 
-// частицы: обломки корабля и искры сбитой торпеды. Скорость в px/с, движение с торможением считается от возраста
+// частицы. Скорость в px/с, движение с торможением считается от возраста:
+// boom — обломки корабля во все стороны; burst — искры и осколки торпеды, сбитой шариками;
+// melt — куски торпеды, расплавленной выхлопом: медленно сносятся вдоль факела (угол — от направления сноса)
+const PART_N = { boom: 24, burst: 10, melt: 6 };
 function spawnParts(r) {
-  const n = r.kind === 'boom' ? 24 : r.kind === 'burst' ? 8 : 0;
+  const n = PART_N[r.kind] || 0;
   if (!n) return;
   const rand = rng(r.seed);
   for (let i = 0; i < n; i++) {
     const a = (i + rand()) / n * 2 * Math.PI;
-    parts.push(r.kind === 'boom'
-      ? { rec: r, a, v: 40 + 100 * rand(), rot: rand() * 6.3, spin: (rand() - 0.5) * 8, len: 3 + 5 * rand(), bend: (rand() - 0.5) * 1.6, hot: rand() < 0.35 }
-      : { rec: r, a, v: 70 + 110 * rand(), rot: a, spin: 0, len: 4 + 4 * rand(), bend: 0, hot: true });
+    if (r.kind === 'boom') parts.push({ rec: r, a, v: 40 + 100 * rand(), rot: rand() * 6.3, spin: (rand() - 0.5) * 8, len: 3 + 5 * rand(), bend: (rand() - 0.5) * 1.6, hot: rand() < 0.35 });
+    else if (r.kind === 'burst') parts.push({ rec: r, a, v: 70 + 110 * rand(), rot: a, spin: i % 2 ? 0 : (rand() - 0.5) * 10, len: 3 + 4 * rand(), bend: i % 2 ? 0 : 1.2, hot: i % 2 === 0, flak: i % 2 === 1 });
+    else parts.push({ rec: r, a: (rand() - 0.5) * 1.2, v: 12 + 26 * rand(), rot: rand() * 6.3, spin: (rand() - 0.5) * 3, len: 2.5 + 3 * rand(), bend: (rand() - 0.5), hot: true, drift: true });
   }
   if (parts.length > MAX_PARTS) parts.splice(0, parts.length - MAX_PARTS);
 }
@@ -63,9 +66,11 @@ function flash(age, dur) {
   return (1 - age / dur) * (0.8 + 0.2 * Math.random());
 }
 
-// X, Y — мир → экран; mpp — метров на пиксель; colFor(team) — цвет стороны
-export function drawFx(ctx, X, Y, mpp, colFor) {
-  const now = clock.fx;
+// X, Y — мир → экран; mpp — метров на пиксель; colFor(team) — цвет стороны;
+// cap — наибольший радиус свечения, px: вблизи взрыв не закрывает карту
+export function drawFx(ctx, X, Y, mpp, colFor, cap = Infinity) {
+  const now = clock.fx, rm = reducedMotion();
+  const R = v => Math.min(cap, v);
   for (const r of recs) {
     const age = now - r.born, u = age / life(r);
     if (u < 0 || u >= 1) continue;
@@ -73,29 +78,37 @@ export function drawFx(ctx, X, Y, mpp, colFor) {
     switch (r.kind) {
       case 'boom': {
         // тлеющее облако, ударная волна и вспышка
-        drawGlow(ctx, glowSprite(C.ember, 64), x, y, Math.max(34, rpx * 0.8) * (1 + 0.4 * u), 0.35 * (1 - u));
+        drawGlow(ctx, glowSprite(C.ember, 64), x, y, R(Math.max(34, rpx * 0.8) * (1 + 0.4 * u)), 0.35 * (1 - u));
         if (age < 1.2) {
-          const k = age / 1.2, R = Math.max(60, rpx * 1.2) * easeOut(k);
+          const k = age / 1.2, rr = R(Math.max(60, rpx * 1.2)) * easeOut(k);
           ctx.strokeStyle = col; ctx.lineWidth = 3 - 2.5 * k; ctx.globalAlpha = 0.9 * (1 - k);
-          ctx.beginPath(); ctx.arc(x, y, Math.max(2, R), 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+          ctx.beginPath(); ctx.arc(x, y, Math.max(2, rr), 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
         }
         const fl = flash(age, 0.15), fc = Math.max(0, 1 - age / 0.6);
-        drawGlow(ctx, glowSprite(col, 64), x, y, Math.max(40, rpx * 0.5), fc);
-        drawGlow(ctx, glowSprite(C.white, 64), x, y, Math.max(40, rpx * 0.5), fl);
+        drawGlow(ctx, glowSprite(col, 64), x, y, R(Math.max(40, rpx * 0.5)), fc);
+        drawGlow(ctx, glowSprite(C.white, 64), x, y, R(Math.max(40, rpx * 0.5)), fl);
         break;
       }
       case 'burst': {
-        drawGlow(ctx, glowSprite(col, 32), x, y, Math.max(24, rpx * 0.4), (1 - u) * 0.9);
+        // перехват шариками: короткая белая вспышка, кольцо цвета облака и осколки
+        drawGlow(ctx, glowSprite(col, 32), x, y, R(Math.max(24, rpx * 0.4)), (1 - u) * 0.8);
         drawGlow(ctx, glowSprite(C.white, 32), x, y, 24, flash(age, 0.15));
+        if (u < 0.5) {
+          const k = u / 0.5;
+          ctx.strokeStyle = C.flak; ctx.lineWidth = 1.5 * (1 - k) + 0.5; ctx.globalAlpha = 0.8 * (1 - k);
+          ctx.beginPath(); ctx.arc(x, y, 6 + 26 * easeOut(k), 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+        }
         break;
       }
       case 'melt': {
-        const d = r.drift || [0, 0], s = 40 * easeOut(u);
-        drawGlow(ctx, glowSprite(C.plume, 32), x + d[0] * s, y + d[1] * s, Math.max(16, rpx * 0.3), 0.8 * (1 - u));
+        // уничтожение выхлопом: корпус торпеды раскаляется добела, затем распадается на тлеющие куски
+        const d = r.drift || [0, 0], s = (rm ? 12 : 40) * easeOut(u), heat = u < 0.3 ? u / 0.3 : 1 - (u - 0.3) / 0.7;
+        drawGlow(ctx, glowSprite(C.plume, 32), x + d[0] * s, y + d[1] * s, R(Math.max(16, rpx * 0.3)), 0.8 * (1 - u));
+        drawGlow(ctx, glowSprite(C.white, 16), x + d[0] * s * 0.5, y + d[1] * s * 0.5, 9, 0.9 * Math.max(0, heat) * (u < 0.3 ? 1 : 0.5));
         break;
       }
       case 'frag': {
-        const rr = Math.max(28, r.r * (0.2 + 0.8 * u) / mpp);
+        const rr = R(Math.max(28, r.r * (0.2 + 0.8 * u) / mpp));
         drawGlow(ctx, glowSprite(col, 32), x, y, rr, 0.6 * (1 - u));
         ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 1 - u; ctx.beginPath();
         for (let k = 0; k < 20; k++) {
@@ -106,7 +119,7 @@ export function drawFx(ctx, X, Y, mpp, colFor) {
         break;
       }
       case 'puff': {
-        const rr = Math.max(12, r.r * (0.3 + 0.7 * easeOut(u)) / mpp), rand = rng(r.seed);
+        const rr = R(Math.max(12, r.r * (0.3 + 0.7 * easeOut(u)) / mpp)), rand = rng(r.seed);
         for (let k = 0; k < 3; k++) {
           const a = rand() * 6.3, o = rr * 0.35 * rand();
           drawGlow(ctx, glowSprite(C.puff, 32), x + Math.cos(a) * o, y + Math.sin(a) * o, rr * (0.7 + 0.3 * rand()), 0.35 * (1 - u));
@@ -115,20 +128,25 @@ export function drawFx(ctx, X, Y, mpp, colFor) {
       }
       default: { // fizz: торпеда выдохлась — тусклое кольцо
         ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.globalAlpha = 0.5 * (1 - u);
-        ctx.beginPath(); ctx.arc(x, y, Math.max(8, r.r * (0.2 + 0.8 * u) / mpp), 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(x, y, R(Math.max(8, r.r * (0.2 + 0.8 * u) / mpp)), 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
       }
     }
   }
-  // обломки и искры: короткие ломаные, вращаются и гаснут
+  // обломки, искры и куски: короткие ломаные, вращаются и гаснут. С reduced-motion разлёт и вращение втрое меньше
   ctx.lineWidth = 1.2;
+  const slow = rm ? 0.35 : 1;
   for (const p of parts) {
     const r = p.rec, age = now - r.born, u = age / life(r);
     if (u < 0 || u >= 1) continue;
-    const d = travel(p.v, age), cx = X(r.pos[0]) + Math.cos(p.a) * d, cy = Y(r.pos[1]) + Math.sin(p.a) * d;
-    const rot = p.rot + p.spin * age, h = p.len / 2, c = Math.cos(rot), s = Math.sin(rot);
+    let a = p.a;
+    if (p.drift) { const d = r.drift || [1, 0]; a += Math.atan2(d[1], d[0]); }
+    const d = travel(p.v, age) * slow, cx = X(r.pos[0]) + Math.cos(a) * d, cy = Y(r.pos[1]) + Math.sin(a) * d;
+    const rot = p.rot + p.spin * age * slow, h = p.len / 2, c = Math.cos(rot), s = Math.sin(rot);
     const c2 = Math.cos(rot + p.bend), s2 = Math.sin(rot + p.bend);
     ctx.globalAlpha = (1 - u) * (r.kind === 'burst' ? 1 : 0.9);
-    ctx.strokeStyle = p.hot ? (u < 0.4 ? C.white : C.plume) : HULL.light;
+    // кусок расплавленной торпеды остывает: белый → оранжевый → тёмно-красный
+    ctx.strokeStyle = p.flak ? C.flak : p.drift ? (u < 0.25 ? C.white : u < 0.6 ? C.plume : C.ember)
+      : p.hot ? (u < 0.4 ? C.white : C.plume) : HULL.light;
     ctx.beginPath(); ctx.moveTo(cx - c * h, cy - s * h); ctx.lineTo(cx, cy); ctx.lineTo(cx + c2 * h, cy + s2 * h); ctx.stroke();
   }
   ctx.globalAlpha = 1;

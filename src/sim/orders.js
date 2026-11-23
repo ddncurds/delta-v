@@ -1,14 +1,28 @@
 // Приказы экипажу. Они исполняются не сразу: задержка растёт с усталостью от перегрузок
-import { FLAK } from '../config.js';
-import { solveIntercept } from '../lib/math.js';
+import { FLAK, SHIP, BURN } from '../config.js';
+import { clamp, solveIntercept } from '../lib/math.js';
 import { S, sayTo, shipOf } from './state.js';
-import { reactionDelay, doDodge, doPlume } from './ship.js';
+import { reactionDelay, doDodge, doPlume, startBurn } from './ship.js';
 import { fireFlak, launchTorp, autoAim } from './weapons.js';
 import { targetTrack } from './sensors.js';
 
-export const ORDER_TYPES = ['heading', 'throttle', 'dodge', 'flak', 'flakAuto', 'flakShip', 'plume', 'torp', 'target'];
+export const ORDER_TYPES = ['heading', 'throttle', 'dodge', 'flak', 'flakAuto', 'flakShip', 'plume', 'torp', 'target', 'burn'];
 // приказы с числовым параметром
 export const ORDER_VAL = ['heading', 'throttle', 'flak', 'target'];
+
+// параметр приказа из сети или интерфейса: проверенный и ограниченный; null — приказ негоден.
+// У приказа без параметра параметр — 0
+// burn — манёвр по плану: [курс, тяга в g, длительность в с]
+export function orderVal(type, val) {
+  if (!ORDER_TYPES.includes(type)) return null;
+  if (type === 'burn') {
+    if (!Array.isArray(val) || val.length !== 3 || !val.every(Number.isFinite)) return null;
+    return [val[0], clamp(val[1], 0, SHIP.maxG), clamp(val[2], BURN.minDur, BURN.maxDur)];
+  }
+  if (!ORDER_VAL.includes(type)) return 0;
+  if (!Number.isFinite(val)) return null;
+  return type === 'throttle' ? clamp(val, 0, SHIP.maxG) : val;
+}
 
 // выбор цели — работа штурмана, а не манёвр: исполняется сразу
 export function issue(id, type, val) {
@@ -16,6 +30,7 @@ export function issue(id, type, val) {
   if (type === 'target') { setTarget(m, val); return; }
   if (type === 'throttle') m.issuedThrottle = val;
   if (type === 'heading') m.issuedHeading = val;
+  if (type === 'burn') { m.issuedHeading = val[0]; m.issuedThrottle = val[1]; }
   m.orders.push({ at: S.t + reactionDelay(m), type, val });
 }
 
@@ -45,6 +60,7 @@ function applyOrder(s, o) {
       break;
     }
     case 'plume': doPlume(s); break;
+    case 'burn': startBurn(s, o.val[0], o.val[1], o.val[2]); s.aimAway = false; break;
     case 'flakShip': {
       const tr = targetTrack(s);
       if (!tr) sayTo(s.id, 'msg.noTarget');

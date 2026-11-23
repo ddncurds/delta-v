@@ -4,7 +4,8 @@ import { cam } from './camera.js';
 import { glowSprite, drawGlow } from './glow.js';
 
 // k: сдвиг звёзд в px на метр при полёте корабля; f: доля сдвига карты при перетаскивании (px на px)
-const LAYERS = [{ k: 0.004, f: 0.05, n: 16, s: 1, a: 0.45 }, { k: 0.012, f: 0.12, n: 9, s: 1.4, a: 0.65 }, { k: 0.03, f: 0.22, n: 4, s: 2, a: 0.9 }];
+// a — яркость слоя: звёзды приглушены, чтобы не спорить с метками боя
+const LAYERS = [{ k: 0.004, f: 0.05, n: 16, s: 1, a: 0.3 }, { k: 0.012, f: 0.12, n: 9, s: 1.4, a: 0.42 }, { k: 0.03, f: 0.22, n: 4, s: 2, a: 0.58 }];
 const COLORS = ['#ffffff', '#cfe0ff', '#ffe6c2'];
 const TILE = 400;
 const off = LAYERS.map(() => [0, 0]);
