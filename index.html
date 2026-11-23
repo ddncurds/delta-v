@@ -16,6 +16,7 @@
   <main class="stage" id="stage">
     <canvas id="c" aria-label="Tactical battle map" data-i18n-attr="aria-label:map.aria"></canvas>
     <div class="toast" id="toast" role="status"></div>
+    <div class="threat-banner" id="threatBanner" hidden><span aria-hidden="true">⚠</span><b id="threatBannerText"></b></div>
     <div class="mini" id="mini">
       <div class="chips">
         <div class="chip"><span data-i18n="chip.dv">Δv, m/s</span><b id="mFuel">9000</b><div class="bar" id="mbFuel"><i></i></div></div>
@@ -23,11 +24,33 @@
         <div class="chip"><span data-i18n="chip.hull">Hull</span><b id="mHp">100%</b><div class="bar" id="mbHp"><i></i></div></div>
         <div class="chip"><span data-i18n="chip.g">G-load, g</span><b id="mG">0.0</b><div class="bar" id="mbG"><i></i></div></div>
         <div class="chip"><span data-i18n="chip.crew">Crew</span><b id="mCrew">0%</b><div class="bar" id="mbCrew"><i></i></div></div>
+        <div class="chip"><span data-i18n="chip.def">Defense</span><b id="mDef" class="pips">●●●</b></div>
       </div>
+      <div class="mtext order" id="mOrder"></div>
       <div class="mtext" id="mContact"></div>
       <div class="mtext" id="mThreat"></div>
     </div>
     <div class="clock" id="clock">t 00:00</div>
+    <section class="planner" id="planner" hidden aria-label="Maneuver plan" data-i18n-attr="aria-label:plan.title">
+      <div class="plhead"><h3 data-i18n="plan.title">Maneuver plan</h3><span class="badge" data-i18n="plan.paused">paused</span></div>
+      <div class="row"><span data-i18n="plan.dir">Direction</span><b id="plDirV">0°</b></div>
+      <input type="range" id="plDir" min="-180" max="180" step="1" value="0" aria-label="Direction" data-i18n-attr="aria-label:plan.dir">
+      <div class="plpresets">
+        <button data-plan-dir="pro" data-i18n="plan.p.pro">Prograde</button>
+        <button data-plan-dir="retro" data-i18n="plan.p.retro">Retrograde</button>
+        <button data-plan-dir="target" data-i18n="plan.p.target">At target</button>
+        <button data-plan-dir="left" data-i18n="plan.p.left">Left</button>
+        <button data-plan-dir="right" data-i18n="plan.p.right">Right</button>
+        <button data-plan-dir="out" data-i18n="plan.p.out">Away from body</button>
+      </div>
+      <div class="row"><span data-i18n="plan.thr">Thrust</span><b id="plThrV">2.0 g</b></div>
+      <input type="range" id="plThr" min="0.5" max="8" step="0.5" value="2" aria-label="Thrust" data-i18n-attr="aria-label:plan.thr">
+      <div class="row"><span data-i18n="plan.dur">Duration</span><b id="plDurV">10 s</b></div>
+      <input type="range" id="plDur" min="1" max="60" step="1" value="10" aria-label="Duration" data-i18n-attr="aria-label:plan.dur">
+      <dl class="plout" id="plOut"></dl>
+      <p class="plnote" id="plNote"></p>
+      <div class="btns"><button class="primary" id="plApply" data-i18n="plan.apply">Apply</button><button id="plCancel" data-i18n="plan.cancel">Cancel</button></div>
+    </section>
     <div class="zoom">
       <button id="zin" aria-label="Zoom in" data-i18n-attr="aria-label:zoom.in">+</button>
       <button id="zout" aria-label="Zoom out" data-i18n-attr="aria-label:zoom.out">−</button>
@@ -46,6 +69,7 @@
           <dt><kbd>E</kbd> <kbd>R</kbd></dt><dd data-i18n="keys.er">dodge the nearest torpedo; turn the engine on it and melt it with exhaust</dd>
           <dt><kbd>T</kbd> <kbd>Q</kbd></dt><dd data-i18n="keys.tq">launch a torpedo at the target; switch target (or click an enemy contact)</dd>
           <dt><kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd></dt><dd data-i18n="keys.fgh">pellet cloud: at the mouse cursor; at a torpedo with lead; at the target ship</dd>
+          <dt><kbd>M</kbd></dt><dd data-i18n="keys.m">plan a maneuver (pauses the battle)</dd>
           <dt><kbd>1</kbd>–<kbd>4</kbd> <kbd>P</kbd></dt><dd data-i18n="keys.num">time speed; pause</dd>
           <dt><kbd>Z</kbd> <kbd>C</kbd></dt><dd data-i18n="keys.zc">ship close-up; camera back to ship. Drag to pan the map, mouse wheel to zoom</dd>
         </dl>
@@ -55,6 +79,7 @@
           <li data-i18n="touch.3">The “Thrust” slider sets acceleration in g.</li>
           <li data-i18n="touch.4">“Aim cloud”: press the button, then tap the map towards the target.</li>
           <li data-i18n="touch.5">“Dodge” evades a torpedo, “Exhaust” melts it with the plume. “Target” or tapping an enemy contact switches target. “Data” opens the full panel.</li>
+          <li data-i18n="touch.6">“Plan” pauses the battle and opens the maneuver plan: set direction, thrust and duration, or tap the map to aim the burn.</li>
         </ul>
         <section class="roster" aria-label="Battle roster" data-i18n-attr="aria-label:roster.title">
           <h3><span data-i18n="roster.title">Battle roster</span> <span class="small" id="rosterSize">1 vs 1</span></h3>
@@ -88,11 +113,12 @@
       <button id="dTorp" class="primary" data-i18n="dock.torp">Torpedo</button>
       <button id="dRetro" data-i18n="dock.retro">Brake</button>
     </div>
-    <div class="grid4">
+    <div class="grid5">
       <button id="dFlakAuto" data-i18n="dock.flakAuto">Cloud at torpedo</button>
       <button id="dFlakShip" data-i18n="dock.flakShip">Cloud at ship</button>
       <button id="dAim" data-i18n="dock.aim">Aim cloud</button>
       <button id="dCut" data-i18n="dock.cut">Stop thrust</button>
+      <button id="dPlan" data-i18n="dock.plan">Plan</button>
     </div>
     <div class="times6">
       <button id="dPause" aria-label="Pause" data-i18n-attr="aria-label:pause">II</button>
@@ -107,17 +133,19 @@
   <aside class="panel">
     <button class="sheetbar" id="sheetClose" data-i18n="panel.close">Close panel</button>
     <div class="phead"><h1 data-i18n="title.short">Delta‑v</h1><div class="langs" role="group" aria-label="Language" data-i18n-attr="aria-label:lang.label"><button data-lang="en">EN</button><button data-lang="ru">RU</button></div></div>
+    <section class="status" aria-label="Ship status" data-i18n-attr="aria-label:stat.aria">
+      <div class="tile"><span data-i18n="stat.dv">Δv</span><b id="vFuel">9000 m/s</b><div class="bar" id="bFuel"><i></i></div></div>
+      <div class="tile"><span data-i18n="stat.hull">Hull</span><b id="vHp">100%</b><div class="bar" id="bHp"><i></i></div></div>
+      <div class="tile"><span data-i18n="stat.crew">Crew strain</span><b id="vCrew">normal</b><div class="bar" id="bCrew"><i></i></div></div>
+      <div class="tile"><span data-i18n="stat.def">Defense</span><b><span id="vFlak" class="pips">●●●</span> <small id="vDef">ready</small></b></div>
+      <div class="order" id="vOrder" role="status"></div>
+    </section>
+    <div class="panel-scroll">
 
     <section class="sec">
       <h2 data-i18n="sec.ship">Ship</h2>
-      <div class="row"><span data-i18n="row.fuel">Fuel</span><b id="vFuel">9000 m/s</b></div>
-      <div class="bar" id="bFuel"><i></i></div>
-      <div class="row"><span data-i18n="row.hull">Hull</span><b id="vHp">100%</b></div>
-      <div class="bar" id="bHp"><i></i></div>
       <div class="row"><span data-i18n="row.g">G-load</span><b id="vG">0.0 g</b></div>
       <div class="bar" id="bG"><i></i></div>
-      <div class="row"><span data-i18n="row.crew">Crew strain</span><b id="vCrew">normal</b></div>
-      <div class="bar" id="bCrew"><i></i></div>
       <div class="row"><span data-i18n="row.delay">Order delay</span><b id="vDelay">0.0 s</b></div>
       <div class="row"><span data-i18n="row.speed">Speed</span><b id="vSpeed">0.00 km/s</b></div>
       <div class="row"><span data-i18n="row.grav">Gravity</span><b id="vGrav">0.00 g</b></div>
@@ -138,12 +166,14 @@
       <div class="btns one">
         <button id="bPlume" class="danger" data-i18n-html="btn.plume">Exhaust at target: 7 g, 6 s <kbd>R</kbd></button>
       </div>
+      <div class="btns one">
+        <button id="bPlan" data-i18n-html="btn.plan">Plan maneuver <kbd>M</kbd></button>
+      </div>
     </section>
 
     <section class="sec">
       <h2 data-i18n="sec.weapons">Weapons</h2>
       <div class="row"><span data-i18n="row.torps">Torpedoes</span><b id="vTorp">10</b></div>
-      <div class="row"><span data-i18n="row.flak">Pellet cloud</span><b id="vFlak" class="pips">●●●</b></div>
       <div class="row"><span data-i18n="row.spread">Cloud spread</span><b id="vSpread">5°</b></div>
       <input type="range" id="spread" min="2" max="10" step="0.5" value="5" aria-label="Cloud spread angle" data-i18n-attr="aria-label:spread.aria">
       <div class="btns one">
@@ -166,7 +196,8 @@
       <div class="small" id="vThreat">No enemy torpedoes</div>
     </section>
 
-    <section class="sec">
+    </div>
+    <section class="sec time-controls">
       <h2 data-i18n="sec.time">Time</h2>
       <div class="times">
         <button id="bPause" aria-label="Pause" data-i18n-attr="aria-label:pause">II</button>

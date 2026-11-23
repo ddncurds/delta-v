@@ -3,20 +3,23 @@
 import { C } from './theme.js';
 import { labelRect, placeLabels } from './label-layout.js';
 
-export const P = { THREAT: 0, OWN: 1, ENV: 2 };
+export const P = { BLOCK: -1, THREAT: 0, OWN: 1, ENV: 2 };
 let queue = [];
 
 export function queueLabel(priority, text, x, y, color, align = 'left') {
   queue.push({ p: priority, text: String(text), x, y, color, align });
 }
 
+// занять прямоугольник экрана: подписи карты на него не лягут
+export function reserveRect(x0, y0, x1, y1) { queue.push({ p: P.BLOCK, text: '', rect: { x0, y0, x1, y1 } }); }
+
 export function flushLabels(ctx) {
   const items = queue; queue = [];
   if (!items.length) return;
   ctx.textBaseline = 'middle';
-  for (const it of items) it.rect = labelRect(it.x, it.y, ctx.measureText(it.text).width, it.align);
+  for (const it of items) if (it.p !== P.BLOCK) it.rect = labelRect(it.x, it.y, ctx.measureText(it.text).width, it.align);
   // сначала окружение, сверху — угрозы
-  const shown = placeLabels(items).reverse();
+  const shown = placeLabels(items).filter(it => it.p !== P.BLOCK).reverse();
   ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = C.paper;
   for (const it of shown) {
     ctx.textAlign = it.align;

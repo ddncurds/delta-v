@@ -3,7 +3,8 @@ export { S, setSayHook, sayTo, shipOf, myShip, viewShip, eyeOf, enemiesOf, allie
 export { gravAt, bodyHit, mainBody, surfaceG, fly } from './bodies.js';
 export { nearestThreat, timeToImpact, targetTrack, pickTarget } from './sensors.js';
 export { reactionDelay } from './ship.js';
-export { issue, setTarget, ORDER_TYPES, ORDER_VAL } from './orders.js';
+export { issue, setTarget, orderVal, ORDER_TYPES, ORDER_VAL } from './orders.js';
+export { planBurn, PLAN_STEP } from './plan.js';
 export { predictPath, impactIn } from './predict.js';
 export { newGame, normalizeRoster, step, resultFor, resultOf, endBattle, callsign, DUEL } from './world.js';
 export { newAi } from './ai.js';

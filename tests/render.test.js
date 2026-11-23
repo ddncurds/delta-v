@@ -95,3 +95,11 @@ test('iconLen: монотонность и непрерывность на по�
   assert.equal(iconLen(10, 0), ICON_MIN_PX);
   assert.ok(Math.abs(iconLen(10, 1) - ICON_MIN_PX * 55 / 46) < 1e-9);
 });
+
+test('подписи угроз не накрывают друг друга: вторая сдвигается на свободную строку', () => {
+  const a = { p: 0, rect: labelRect(100, 50, 80), y: 50 }, b = { p: 0, rect: labelRect(110, 52, 80), y: 52 };
+  const shown = placeLabels([a, b]);
+  assert.equal(shown.length, 2);
+  assert.ok(!overlap(a.rect, b.rect));
+  assert.notEqual(b.y, 52, 'якорь текста сдвинут вместе с прямоугольником');
+});

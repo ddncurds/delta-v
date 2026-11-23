@@ -9,6 +9,9 @@ export const TORP = { acc: 400, dv: 3900, blast: 150, fuse: 1500, frags: 80, fra
 export const FLAK = { n: 70, speed: 1800, life: 40, hitR: 60, kill: 2, charges: 3, recharge: 15, cd: 0.8, mass: 15, recoil: 4, shipR: 100, dmg: 5 };
 export const PLUME = { perG: 1500, half: 6 * D2R, base: 15, rate: 25, melt: 100, shipRate: 3 };
 export const DETECT = 25000;
+// манёвр по плану: длительность, с; горизонт прогноза, с
+export const BURN = { minDur: 1, maxDur: 60 };
+export const PLAN = { T: 240 };
 
 // команды: 0 — синие, 1 — красные; в каждой от 1 до TEAM.max кораблей.
 // spread — расстояние между кораблями строя на старте, м. Названия команд и позывные ИИ — в словарях src/i18n

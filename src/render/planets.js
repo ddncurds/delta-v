@@ -148,30 +148,33 @@ export function drawBody(ctx, b, x, y, r) {
     return;
   }
   ctx.drawImage(texture(b), x - r, y - r, 2 * r, 2 * r);
-  // ночная сторона: тень, сдвинутая от солнца
+  // ночная сторона: тень, сдвинутая от солнца; терминатор резче, ночь почти чёрная
   const [lx, ly] = LIGHT;
   const g = ctx.createRadialGradient(x + lx * r * 0.55, y + ly * r * 0.55, 0, x + lx * r * 0.3, y + ly * r * 0.3, r * 1.45);
-  g.addColorStop(0, 'rgba(255,248,230,0.10)'); g.addColorStop(0.38, 'rgba(0,0,0,0)');
-  g.addColorStop(0.75, 'rgba(3,6,10,0.62)'); g.addColorStop(1, 'rgba(3,6,10,0.95)');
+  g.addColorStop(0, 'rgba(255,248,230,0.08)'); g.addColorStop(0.34, 'rgba(0,0,0,0)');
+  g.addColorStop(0.62, 'rgba(3,6,10,0.72)'); g.addColorStop(0.8, 'rgba(3,6,10,0.93)'); g.addColorStop(1, 'rgba(3,6,10,0.98)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  // тела приглушены: фон не спорит с метками боя
+  ctx.fillStyle = rgba(C.paper, 0.18); ctx.fill();
   if (ATMO[b.look]) atmosphere(ctx, ATMO[b.look], x, y, r); else rim(ctx, x, y, r);
 }
 
 const SECTORS = 16;
 const LIGHT_A = Math.atan2(LIGHT[1], LIGHT[0]);
 
-// ореол атмосферы поверх диска: кольцо от r до 1,12·r, на дневной стороне вдвое ярче, чем на ночной.
+// тонкий ореол атмосферы поверх диска: кольцо от r до 1,06·r. Атмосфера есть только у планет
+// земного типа, пустынных и газовых (ATMO); светится дневная сторона, ночная почти не видна.
 // Кольцо режется на секторы, яркость сектора плавно меняется с углом к солнцу
 function atmosphere(ctx, col, x, y, r) {
-  const R = r * 1.12;
+  const R = r * 1.06;
   const g = ctx.createRadialGradient(x, y, r * 0.985, x, y, R);
-  g.addColorStop(0, rgba(col, 0.35)); g.addColorStop(0.4, rgba(col, 0.14)); g.addColorStop(1, rgba(col, 0));
+  g.addColorStop(0, rgba(col, 0.32)); g.addColorStop(0.45, rgba(col, 0.1)); g.addColorStop(1, rgba(col, 0));
   const op = ctx.globalCompositeOperation;
   ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g;
   const da = 2 * Math.PI / SECTORS;
   for (let i = 0; i < SECTORS; i++) {
     const a0 = i * da, mid = a0 + da / 2;
-    ctx.globalAlpha = 0.5 + 0.5 * Math.max(0, Math.cos(mid - LIGHT_A));
+    ctx.globalAlpha = 0.12 + 0.88 * Math.max(0, Math.cos(mid - LIGHT_A));
     ctx.beginPath(); ctx.arc(x, y, R, a0, a0 + da + 0.01); ctx.arc(x, y, r * 0.985, a0 + da + 0.01, a0, true); ctx.closePath(); ctx.fill();
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = op;

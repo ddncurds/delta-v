@@ -56,10 +56,14 @@ export function killShip(s, why, byTeam) {
   addFx({ kind: 'boom', pos: [s.pos[0], s.pos[1]], dur: 4, r: 6000, team: byTeam });
 }
 
-export function stepShip(s, dt) {
-  if (!s.alive) return;
-  if (s.burnEnd > 0 && S.t >= s.burnEnd) { s.cmdThrottle = 0; s.burnEnd = -1; s.aimAway = false; s.issuedThrottle = 0; }
-  if (s.aimAway) { s.cmdHeading = awayAngle(s); s.issuedHeading = s.cmdHeading; }
+// срок манёвра вышел: двигатель глохнет. now — время боя
+export function endBurnIfDue(s, now) {
+  if (s.burnEnd > 0 && now >= s.burnEnd) { s.cmdThrottle = 0; s.burnEnd = -1; s.aimAway = false; s.issuedThrottle = 0; }
+}
+
+// поворот к заданному курсу, тяга вдоль текущего курса, расход топлива и шаг в поле тяжести.
+// Прогноз манёвра (plan.js) зовёт эту же функцию, поэтому план совпадает с исполнением
+export function propel(s, dt) {
   const m = SHIP.turn * dt;
   s.heading = wrap(s.heading + clamp(wrap(s.cmdHeading - s.heading), -m, m));
   let a = clamp(s.cmdThrottle, 0, SHIP.maxG) * G0;
@@ -67,6 +71,21 @@ export function stepShip(s, dt) {
   s.fuel = Math.max(0, s.fuel - a * dt);
   s.accG = a / G0;
   fly(s.pos, s.vel, Math.cos(s.heading) * a, Math.sin(s.heading) * a, dt);
+}
+
+// усталость экипажа: копится от перегрузки от 3 g, спадает ниже 1,5 g
+export function strain(s, dt) {
+  if (!s.crew) return;
+  const g = s.accG;
+  if (g >= 3) s.stress += Math.pow(g - 2.5, 1.6) * 0.5 * dt;
+  else if (g < 1.5) s.stress = Math.max(0, s.stress - 1.2 * dt);
+}
+
+export function stepShip(s, dt) {
+  if (!s.alive) return;
+  endBurnIfDue(s, S.t);
+  if (s.aimAway) { s.cmdHeading = awayAngle(s); s.issuedHeading = s.cmdHeading; }
+  propel(s, dt);
   const hb = bodyHit(s.pos[0], s.pos[1]);
   if (hb) {
     killShip(s, 'crash', 1 - s.team);
@@ -78,9 +97,5 @@ export function stepShip(s, dt) {
     s.flakTimer -= dt;
     if (s.flakTimer <= 0) { s.flak++; s.flakTimer = s.flak < FLAK.charges ? FLAK.recharge : 0; }
   }
-  if (s.crew) {
-    const g = s.accG;
-    if (g >= 3) s.stress += Math.pow(g - 2.5, 1.6) * 0.5 * dt;
-    else if (g < 1.5) s.stress = Math.max(0, s.stress - 1.2 * dt);
-  }
+  strain(s, dt);
 }

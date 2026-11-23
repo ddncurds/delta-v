@@ -1,9 +1,10 @@
 // Кадр тактической карты: фон, тела, прогноз курса, оружие, корабли, эффекты и подписи.
 // Светится только то, что излучает энергию: двигатели, торпеды, взрывы; сетка и кольца — самый тихий слой
 import { G0, FLAK, PLUME, SHIP, DETECT } from '../config.js';
+import { draft, draftForecast } from '../maneuver.js';
 import { dist } from '../lib/math.js';
 import { fmtDist } from '../lib/format.js';
-import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip } from '../sim/index.js';
+import { S, predictPath, mainBody, surfaceG, timeToImpact, myShip, viewShip, PLAN_STEP } from '../sim/index.js';
 import { run } from '../run.js';
 import { pointer, COARSE } from '../ui/pointer.js';
 import { C, FONT } from './theme.js';
@@ -15,7 +16,7 @@ import { drawShipModel, drawShipIcon, shipLength } from './ship-models.js';
 import { iconLen, modelMix } from './lod.js';
 import { clock, tickClock, pulse, reducedMotion } from './clock.js';
 import { glowSprite, drawGlow, rgba } from './glow.js';
-import { queueLabel, flushLabels, P } from './labels.js';
+import { queueLabel, flushLabels, reserveRect, P } from './labels.js';
 import { syncFx, drawFx } from './fx.js';
 import { newTrails, updateTrails, trailOf } from './trails.js';
 
@@ -23,6 +24,10 @@ const GRAV_RINGS = [0.5, 0.2, 0.1, 0.05];   // линии равного при�
 const PREDICT = { T: 240, h: 0.5 };          // горизонт и шаг прогноза курса, с
 const SIGNATURE_G = 0.3;                     // с такой тяги двигатель выдаёт корабль на любой дистанции (sensors.js)
 const TORP_PX = 10;                          // длина значка торпеды, px
+const TICK_LABELS = [30, 60, 120, 240];      // подписанные отметки времени на прогнозе, с
+const TICK_GAP = 64;                         // подписи отметок не ближе этого друг к другу и к кораблю, px
+const TORP_TRAIL = 12;                       // след торпеды: последние точки (раз в секунду)
+const PLUME_EASE = 0.12;                     // постоянная времени разгорания и затухания факела на экране, реальные с
 
 // view — корабль, чьими глазами смотрим (свой, а после гибели — союзник); его команда — «свои»
 let ctx = null, vx = 0, vy = 0, view = null, perf = null;
@@ -56,13 +61,18 @@ export function draw(dtReal = 0) {
   drawRangeRings();
   drawBodies();
   drawTrails();
-  if (myShip().alive) drawPrediction(myShip());
+  easePlumes();
+  const plan = draft.open && myShip().alive ? draftForecast() : null;
+  if (plan) drawPlan(plan, myShip());
+  else if (myShip().alive) drawPrediction(myShip());
   drawFlakCone();
   drawPellets();
   drawTorps();
   drawShips();
-  drawFx(ctx, X, Y, cam.mpp, sideCol);
+  drawFx(ctx, X, Y, cam.mpp, sideCol, Math.min(cam.w, cam.h) * 0.22);
   drawEdgeMarkers();
+  // место крупной скорости и сближения внизу по центру
+  reserveRect(cam.w / 2 - 130 - cam.sx, cam.h - 56 - cam.sy, cam.w / 2 + 130 - cam.sx, cam.h - cam.sy);
   flushLabels(ctx);
   ctx.restore();
   drawScaleBar(gridStep);
@@ -122,12 +132,13 @@ function drawGrid() {
 function drawRangeRings() {
   const me = view, rs = niceStep(cam.mpp * 200), sx0 = X(me.pos[0]), sy0 = Y(me.pos[1]);
   const mx = Math.hypot(cam.w, cam.h) / 2 + Math.hypot(sx0 - cam.w / 2, sy0 - cam.h / 2);
-  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.setLineDash([2, 5]); ctx.globalAlpha = 0.7;
   for (let k = 1; k * rs / cam.mpp < mx && k < 40; k++) {
     const r = k * rs / cam.mpp;
     ctx.beginPath(); ctx.arc(sx0, sy0, r, 0, 7); ctx.stroke();
     if (r > 40) queueLabel(P.ENV, fmtDist(k * rs), sx0 + r * 0.7071 + 4, sy0 - r * 0.7071, C.ink2);
   }
+  ctx.globalAlpha = 1;
   const dr = DETECT / cam.mpp;
   if (dr > 30 && dr < mx) {
     ctx.strokeStyle = C.me; ctx.globalAlpha = 0.35; ctx.setLineDash([6, 6]);
@@ -161,7 +172,7 @@ function drawBodies() {
     GRAV_RINGS.forEach((gl, i) => {
       const rr = Math.sqrt(b.mu / (gl * G0)) / cam.mpp;
       if (rr <= br * 1.05) return;
-      ctx.globalAlpha = 0.5 - 0.32 * i / (GRAV_RINGS.length - 1);
+      ctx.globalAlpha = 0.35 - 0.22 * i / (GRAV_RINGS.length - 1);
       ctx.beginPath(); ctx.arc(bx, by, rr, 0, 7); ctx.stroke();
       if (b === main && rr > 60) queueLabel(P.ENV, gl + ' g', bx + rr * 0.7071 + 4, by + rr * 0.7071, C.ink2);
     });
@@ -199,44 +210,135 @@ function drawTrails() {
   ctx.globalAlpha = 1;
 }
 
-// прогноз курса: с тягой — сплошная линия, дальше по инерции — пунктир с отметками каждые 10 с
-function drawPrediction(me) {
-  const { T, h } = PREDICT, pp = predictPath(me, T, h), pts = pp.pts;
-  const line = (i0, i1) => {
-    ctx.beginPath();
-    for (let i = i0; i <= i1; i++) i > i0 ? ctx.lineTo(X(pts[i][0]), Y(pts[i][1])) : ctx.moveTo(X(pts[i][0]), Y(pts[i][1]));
-    ctx.stroke();
-  };
-  ctx.strokeStyle = C.me; ctx.fillStyle = C.me;
-  if (pp.burnN > 0) { ctx.lineWidth = 2; line(0, pp.burnN); }
-  ctx.lineWidth = 1.2; ctx.globalAlpha = 0.55; ctx.setLineDash([4, 5]);
-  line(pp.burnN, pts.length - 1);
-  ctx.setLineDash([]);
-  const tick = Math.round(10 / h);
+// полилиния по точкам мира pts[i0…i1]
+function polyline(pts, i0, i1) {
+  ctx.beginPath();
+  for (let i = i0; i <= i1; i++) i > i0 ? ctx.lineTo(X(pts[i][0]), Y(pts[i][1])) : ctx.moveTo(X(pts[i][0]), Y(pts[i][1]));
+  ctx.stroke();
+}
+
+// та же линия, но прозрачность плавно меняется от a0 к a1: дальние участки прогноза тише ближних.
+// Смещение штриха переносится между кусками, чтобы пунктир не сбивался
+function fadedLine(pts, i0, i1, a0, a1, chunk = 10) {
+  let dash = 0;
+  for (let i = i0; i < i1; i += chunk) {
+    const j = Math.min(i1, i + chunk);
+    ctx.globalAlpha = a0 + (a1 - a0) * (i - i0) / Math.max(1, i1 - i0);
+    ctx.lineDashOffset = -dash; polyline(pts, i, j);
+    for (let k = i + 1; k <= j; k++) dash += Math.hypot(X(pts[k][0]) - X(pts[k - 1][0]), Y(pts[k][1]) - Y(pts[k - 1][1]));
+  }
+  ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+}
+
+// точка на экране и вдали от уже подписанных
+const onScreen = (x, y, m = 20) => x > m && x < cam.w - m && y > m && y < cam.h - m;
+const farFrom = (x, y, list) => list.every(([a, b]) => Math.hypot(x - a, y - b) >= TICK_GAP);
+
+// отметки времени на прогнозе: точки каждые 10 с гаснут с удалением, подписаны только 30, 60, 120 и 240 с,
+// и только если подпись не налезает на корабль и соседнюю отметку
+function timeTicks(pts, h, col, a0) {
+  const tick = Math.round(10 / h), placed = [[X(pts[0][0]), Y(pts[0][1])]];
+  ctx.fillStyle = col;
   for (let i = tick; i < pts.length; i += tick) {
-    const t = i * h, x = X(pts[i][0]), y = Y(pts[i][1]), lab = t === 30 || t % 60 === 0;
+    const t = Math.round(i * h), x = X(pts[i][0]), y = Y(pts[i][1]), lab = TICK_LABELS.includes(t);
+    ctx.globalAlpha = a0 * (1 - 0.7 * i / pts.length);
     ctx.beginPath(); ctx.arc(x, y, lab ? 2.5 : 1.5, 0, 7); ctx.fill();
-    if (lab) queueLabel(P.OWN, txt('map.sec', { t }), x + 6, y - 8, C.me);
+    if (lab && onScreen(x, y) && farFrom(x, y, placed)) { placed.push([x, y]); queueLabel(P.OWN, txt('map.sec', { t }), x + 6, y - 8, col); }
   }
   ctx.globalAlpha = 1;
-  if (pp.hit) {
-    const e = pts[pts.length - 1], x = X(e[0]), y = Y(e[1]);
-    ctx.strokeStyle = C.foe; ctx.lineWidth = 2; ctx.beginPath();
-    ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6); ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6); ctx.stroke();
-    queueLabel(P.THREAT, txt('map.collision', { s: pp.hitT }), x + 10, y + 10, C.foe);
-    return;
-  }
-  // самая низкая точка над поверхностью — по ней видно, как манёвр меняет орбиту
+}
+
+// столкновение в конце прогноза: крест и время
+function collisionMark(pts, hitT) {
+  const e = pts[pts.length - 1], x = X(e[0]), y = Y(e[1]);
+  ctx.strokeStyle = C.foe; ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6); ctx.moveTo(x + 6, y - 6); ctx.lineTo(x - 6, y + 6); ctx.stroke();
+  queueLabel(P.THREAT, txt('map.collision', { s: hitT }), x + 10, y + 10, C.foe);
+}
+
+// самая низкая точка над поверхностью — по ней видно, как манёвр меняет орбиту
+function lowPoint(pts, h, col = C.warn) {
   let lo = null;
   for (let i = 1; i < pts.length - 1; i++) {
     const mb = mainBody(pts[i]);
     if (mb && mb.alt < mb.b.r * 2 && (!lo || mb.alt < lo.alt)) lo = { alt: mb.alt, i };
   }
-  if (lo && lo.i > 2 && lo.i < pts.length - 2) {
-    const x = X(pts[lo.i][0]), y = Y(pts[lo.i][1]);
-    ctx.strokeStyle = C.warn; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.stroke();
-    queueLabel(P.THREAT, txt('map.minAlt', { alt: lo.alt, s: lo.i * h }), x + 8, y + 10, C.warn);
+  if (!lo || lo.i <= 2 || lo.i >= pts.length - 2) return;
+  const x = X(pts[lo.i][0]), y = Y(pts[lo.i][1]);
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.stroke();
+  queueLabel(P.THREAT, txt('map.minAlt', { alt: lo.alt, s: lo.i * h }), x + 8, y + 10, col);
+}
+
+// прогноз курса: участок с тягой — сплошная яркая линия, полёт по инерции — пунктир, который гаснет вдали
+function drawPrediction(me) {
+  const { T, h } = PREDICT, pp = predictPath(me, T, h), pts = pp.pts;
+  ctx.strokeStyle = C.me;
+  if (pp.burnN > 0) { ctx.lineWidth = 2; ctx.globalAlpha = 0.95; polyline(pts, 0, pp.burnN); ctx.globalAlpha = 1; }
+  ctx.lineWidth = 1.2; ctx.setLineDash([4, 5]);
+  fadedLine(pts, pp.burnN, pts.length - 1, 0.7, 0.12);
+  ctx.setLineDash([]);
+  timeTicks(pts, h, C.me, 0.8);
+  if (pp.hit) collisionMark(pts, pp.hitT);
+  else lowPoint(pts, h);
+}
+
+// стрелка на конце траектории
+function arrowHead(pts, col) {
+  const n = pts.length - 1;
+  if (n < 2) return;
+  const x = X(pts[n][0]), y = Y(pts[n][1]), a = Math.atan2(y - Y(pts[n - 2][1]), x - X(pts[n - 2][0]));
+  ctx.fillStyle = col; ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-6, 5); ctx.lineTo(-6, -5); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+
+// подпись линии в точке на доле frac её длины, если точка на экране
+function lineLabel(pts, frac, text, col, dy = -12) {
+  const p = pts[Math.min(pts.length - 1, Math.max(0, Math.round((pts.length - 1) * frac)))], x = X(p[0]), y = Y(p[1]);
+  if (onScreen(x, y, 40)) queueLabel(P.OWN, text, x + 8, y + dy, col);
+}
+
+// план манёвра на паузе: текущий курс — тихий пунктир, курс после манёвра — сплошная линия цвета плана,
+// участок тяги — янтарный, на нём — расход и параметры. Прогноз считает plan.js; на карте только его итог
+function drawPlan(f, me) {
+  const cur = f.cur.pts, nx = f.next, pts = nx.pts, h = PLAN_STEP;
+  ctx.strokeStyle = C.me; ctx.lineWidth = 1.2; ctx.setLineDash([4, 6]);
+  fadedLine(cur, 0, cur.length - 1, 0.5, 0.1);
+  ctx.setLineDash([]);
+  lineLabel(cur, 0.3, txt('map.planCur'), C.ink2, 12);
+  // направление тяги от корабля
+  const sx = X(me.pos[0]), sy = Y(me.pos[1]);
+  ctx.strokeStyle = C.warn; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.9; ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(draft.ang) * 48, sy - Math.sin(draft.ang) * 48); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.plan; ctx.lineWidth = 2;
+  fadedLine(pts, Math.max(0, nx.burnTo), pts.length - 1, 1, 0.3);
+  if (nx.burnFrom > 0) { ctx.strokeStyle = C.plan; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; polyline(pts, 0, nx.burnFrom); ctx.globalAlpha = 1; }
+  if (nx.burnFrom >= 0) {
+    ctx.strokeStyle = C.warn; ctx.lineWidth = 3; polyline(pts, nx.burnFrom, nx.burnTo);
+    const b = pts[nx.burnFrom], bx = X(b[0]), by = Y(b[1]);
+    ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, by, 4, 0, 7); ctx.stroke();
+    queueLabel(P.THREAT, txt('map.planBurn', { dv: nx.dv, d: draft.dur, g: draft.g.toFixed(1) }), bx + 10, by - 14, C.warn);
   }
+  if (!nx.hit) arrowHead(pts, C.plan);
+  lineLabel(pts, 0.55, txt('map.planNew'), C.plan);
+  timeTicks(pts, h, C.plan, 0.7);
+  if (nx.hit) collisionMark(pts, nx.hitT);
+  else lowPoint(pts, h);
+  // ближайшее сближение с целью по её последнему треку
+  if (nx.near && nx.near.t > 1) {
+    const i = Math.min(pts.length - 1, Math.round(nx.near.t / h)), ox = X(pts[i][0]), oy = Y(pts[i][1]);
+    const tx = X(nx.near.pos[0]), ty = Y(nx.near.pos[1]);
+    ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.6; ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    diamond(tx, ty, 5, C.foe);
+    if (onScreen(tx, ty, 30)) queueLabel(P.OWN, txt('map.near', { d: nx.near.d }), tx + 9, ty + 10, C.foe);
+  }
+}
+
+// полый ромб: потерянный контакт, опасная торпеда, точка сближения
+function diamond(x, y, r, col, w = 1.5) {
+  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath();
+  ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); ctx.stroke();
 }
 
 // сектор, в который уйдёт облако шариков при выстреле по курсору
@@ -256,7 +358,7 @@ function drawPellets() {
   ctx.fillStyle = C.flak; ctx.strokeStyle = C.flak; ctx.lineWidth = 1;
   const glow = glowSprite(C.flak, 8);
   for (const p of S.pellets) {
-    const a = 1 - 0.7 * p.age / FLAK.life, x = X(p.pos[0]), y = Y(p.pos[1]);
+    const a = 0.8 * (1 - 0.7 * p.age / FLAK.life), x = X(p.pos[0]), y = Y(p.pos[1]);
     const bx = X(p.pos[0] - p.vel[0] * 0.12), by = Y(p.pos[1] - p.vel[1] * 0.12);
     ctx.globalAlpha = a;
     if (Math.hypot(x - bx, y - by) < 2) ctx.fillRect(x - 1, y - 1, 2, 2);
@@ -266,17 +368,25 @@ function drawPellets() {
   ctx.globalAlpha = 1;
 }
 
+// торпеды: короткий гаснущий след, треугольник по скорости, у вражеской на подлёте — ромб и пульс угрозы
 function drawTorps() {
   const rm = reducedMotion();
   for (const t of S.torps) {
     const col = sideCol(t.team), x = X(t.pos[0]), y = Y(t.pos[1]);
-    ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.beginPath();
-    t.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
-    ctx.lineTo(x, y); ctx.stroke(); ctx.globalAlpha = 1;
+    const tail = t.trail.slice(-TORP_TRAIL), n = tail.length;
+    ctx.strokeStyle = col; ctx.lineWidth = 1.2;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = tail[i], [bx, by] = i + 1 < n ? tail[i + 1] : t.pos;
+      ctx.globalAlpha = 0.55 * (i + 1) / n;
+      ctx.beginPath(); ctx.moveTo(X(ax), Y(ay)); ctx.lineTo(X(bx), Y(by)); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     const ang = Math.atan2(t.vel[1], t.vel[0]), ca = Math.cos(ang), sa = Math.sin(ang);
-    const foe = t.team !== view.team, g = foe ? timeToImpact(t, view) : null;
-    // торпеда противника на подлёте: красный пульс
-    if (foe && g && g < 30) drawGlow(ctx, glowSprite(C.threat, 16), x, y, 14, rm ? 0.5 : 0.25 + 0.45 * pulse(0.8));
+    const foe = t.team !== view.team, g = foe ? timeToImpact(t, view) : null, danger = foe && g && g < 30;
+    if (danger) {
+      diamond(x, y, 11, col);
+      drawGlow(ctx, glowSprite(C.threat, 16), x, y, 14, rm ? 0.5 : 0.25 + 0.45 * pulse(0.8));
+    }
     if (t.acc > 1) drawGlow(ctx, glowSprite(C.plume, 16), x - ca * 6, y + sa * 6, 8, 0.7);
     if (t.heat > 5) drawGlow(ctx, glowSprite(C.plume, 16), x, y, 7, Math.min(1, t.heat / 40) * 0.8);
     const k = TORP_PX / 10;
@@ -286,7 +396,7 @@ function drawTorps() {
     ctx.restore();
     if (foe) {
       queueLabel(P.THREAT, txt('map.torp', { eta: g ? txt('map.sec', { t: Math.round(g) }) : '—', dv: t.fuel })
-        + (t.heat > 5 ? txt('map.heat', { h: Math.min(99, Math.round(t.heat)) }) : ''), x + 9, y - 9, col);
+        + (t.heat > 5 ? txt('map.heat', { h: Math.min(99, Math.round(t.heat)) }) : ''), x + 13, y - 11, col);
     }
   }
 }
@@ -294,24 +404,64 @@ function drawTorps() {
 // длина корабля на экране: силуэт не короче порога, крупнее — настоящий масштаб
 const shipPx = s => iconLen(shipLength(s) / cam.mpp, s.team);
 
-// факел двигателя в масштабе карты: зона, где выхлоп плавит торпеды и корпус; у сопла — мягкое ядро
+// факел на экране разгорается и гаснет за PLUME_EASE реальных секунд, а на паузе замирает.
+// Это только картинка: зону поражения считает weapons.js по настоящей тяге
+const plumeShown = new Map();
+let plumeClock = { S: null, fx: 0 };
+function easePlumes() {
+  if (plumeClock.S !== S) { plumeShown.clear(); plumeClock = { S, fx: clock.fx }; }
+  const dt = clock.fx - plumeClock.fx, k = 1 - Math.exp(-Math.max(0, dt) / PLUME_EASE);
+  plumeClock.fx = clock.fx;
+  for (const s of S.ships) {
+    const want = s.alive ? s.accG : 0, was = plumeShown.get(s.id) ?? want;
+    plumeShown.set(s.id, was + (want - was) * k);
+  }
+}
+
+// факел двигателя в масштабе карты: тёплая полупрозрачная оболочка по конусу поражения и яркое узкое ядро у сопла.
+// Длина и яркость — от тяги. При защите выхлопом свой корабль показывает пунктиром настоящую зону поражения
 function drawPlume(s) {
-  if (!s.alive || s.accG < 0.5) return;
-  const L = PLUME.perG * s.accG, cx0 = X(s.pos[0]), cy0 = Y(s.pos[1]);
+  const lvl = plumeShown.get(s.id) ?? s.accG;
+  if (!s.alive || lvl < 0.15) return;
+  const L = PLUME.perG * lvl, cx0 = X(s.pos[0]), cy0 = Y(s.pos[1]), p = Math.min(1, lvl / SHIP.maxG);
   const ax = -Math.cos(s.heading), ay = -Math.sin(s.heading), noz = Math.max(23 / cam.mpp, shipPx(s) * 0.5);
   const x0 = cx0 + ax * noz, y0 = cy0 - ay * noz;
   const x1 = cx0 + ax * L / cam.mpp, y1 = cy0 - ay * L / cam.mpp;
-  const hw = Math.max(1.5, (PLUME.base + (L - 23) * Math.tan(PLUME.half)) / cam.mpp);
-  ctx.fillStyle = C.plume;
-  for (const k of [1, 0.6, 0.3]) {
-    ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.moveTo(x0, y0);
-    ctx.lineTo(x0 + (x1 - x0) * k + ay * hw * k, y0 + (y1 - y0) * k + ax * hw * k);
-    ctx.lineTo(x0 + (x1 - x0) * k - ay * hw * k, y0 + (y1 - y0) * k - ax * hw * k);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  const p = Math.min(1, s.accG / SHIP.maxG);
-  drawGlow(ctx, glowSprite(C.plume, 32), x0, y0, Math.max(8, shipPx(s) * (0.25 + 0.35 * p)), 0.35 + 0.6 * p);
+  const hw = Math.max(1.5, (PLUME.base + L * Math.tan(PLUME.half)) / cam.mpp), nb = Math.max(1, Math.min(hw * 0.3, shipPx(s) * 0.1));
+  const shimmer = reducedMotion() ? 1 : 0.94 + 0.06 * pulse(0.16);
+  const cone = (xa, ya, xb, yb, wa, wb) => {
+    ctx.beginPath(); ctx.moveTo(xa + ay * wa, ya + ax * wa); ctx.lineTo(xb + ay * wb, yb + ax * wb);
+    ctx.lineTo(xb - ay * wb, yb - ax * wb); ctx.lineTo(xa - ay * wa, ya - ax * wa); ctx.closePath(); ctx.fill();
+  };
+  // оболочка; вблизи она гаснет на экранной длине, а дальше факел показывает только контур зоны поражения
+  const Lpx = Math.hypot(x1 - x0, y1 - y0) || 1, ke = Math.min(1, Math.max(160, 14 * shipPx(s)) / Lpx);
+  const env = ctx.createLinearGradient(x0, y0, x0 + (x1 - x0) * ke, y0 + (y1 - y0) * ke);
+  env.addColorStop(0, rgba(C.plume, 0.3 + 0.3 * p)); env.addColorStop(0.35, rgba(C.plume, 0.16 + 0.1 * p)); env.addColorStop(1, rgba(C.plume, 0));
+  ctx.fillStyle = env; ctx.globalAlpha = shimmer; cone(x0, y0, x1, y1, nb, hw);
+  // ядро: светлее и короче, с наложением 'lighter'
+  // ядро не длиннее шести корпусов: вблизи факел остаётся ярким только у сопла
+  const kc = Math.min(0.45, 6 * shipPx(s) / Lpx);
+  const xc = x0 + (x1 - x0) * kc, yc = y0 + (y1 - y0) * kc, core = ctx.createLinearGradient(x0, y0, xc, yc);
+  core.addColorStop(0, rgba(C.white, 0.85 * (0.4 + 0.6 * p))); core.addColorStop(0.3, rgba(C.plume, 0.5)); core.addColorStop(1, rgba(C.plume, 0));
+  const op = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = core; cone(x0, y0, xc, yc, nb * 0.6, Math.max(0.8, Math.min(hw * 0.25, shipPx(s) * 0.2)));
+  ctx.globalCompositeOperation = op; ctx.globalAlpha = 1;
+  if (s === myShip() && s.aimAway && s.accG >= 0.5) plumeZone(s, cx0, cy0, ax, ay);
+  drawGlow(ctx, glowSprite(C.plume, 32), x0, y0, Math.max(6, shipPx(s) * (0.2 + 0.3 * p)), (0.3 + 0.5 * p) * shimmer);
+  drawGlow(ctx, glowSprite(C.white, 16), x0, y0, Math.max(2.5, shipPx(s) * 0.1), (0.3 + 0.4 * p) * shimmer);
+}
+
+// контур зоны поражения выхлопом — та же геометрия, что в plumeFactor (weapons.js), по настоящей тяге
+function plumeZone(s, cx0, cy0, ax, ay) {
+  const L = PLUME.perG * s.accG, x1 = cx0 + ax * L / cam.mpp, y1 = cy0 - ay * L / cam.mpp;
+  const base = PLUME.base / cam.mpp, end = (PLUME.base + L * Math.tan(PLUME.half)) / cam.mpp;
+  ctx.strokeStyle = rgba(C.warn, 0.75); ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(cx0 + ay * base, cy0 + ax * base);
+  ctx.lineTo(x1 + ay * end, y1 + ax * end); ctx.lineTo(x1 - ay * end, y1 - ax * end);
+  ctx.lineTo(cx0 - ay * base, cy0 - ax * base); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+  // подпись у кромки зоны, не дальше 140 px от корабля, чтобы она была на экране
+  const d = Math.min(L / cam.mpp / 2, 140), w = (PLUME.base + d * cam.mpp * Math.tan(PLUME.half)) / cam.mpp;
+  if (L / cam.mpp > 60) queueLabel(P.THREAT, txt('map.plumeZone'), cx0 + ax * d + ay * w + 8, cy0 - ay * d + ax * w, C.warn);
 }
 
 // турели ПОО следят за ближайшей вражеской торпедой, а без неё — за целью корабля
@@ -339,11 +489,15 @@ function drawShip(s, col) {
 // подпись у корабля или контакта, справа-снизу от силуэта
 function label(text, col, x, y, off = 14) { queueLabel(P.OWN, text, x + off, y + off + 2, col); }
 
-// цель своего корабля обведена кольцом с засечками
-function targetMark(x, y, r = 17) {
-  ctx.strokeStyle = C.foe; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
-  ctx.beginPath();
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(x + dx * (r - 4), y + dy * (r - 4)); ctx.lineTo(x + dx * (r + 5), y + dy * (r + 5)); }
+// Угловые скобки цели не закрывают силуэт и отличаются от кольца своего корабля.
+function targetMark(x, y, r = 19) {
+  ctx.strokeStyle = C.foe; ctx.lineWidth = 2; ctx.beginPath();
+  const arm = Math.min(10, r * 0.45);
+  for (const dx of [-1, 1]) for (const dy of [-1, 1]) {
+    ctx.moveTo(x + dx * (r - arm), y + dy * r);
+    ctx.lineTo(x + dx * r, y + dy * r);
+    ctx.lineTo(x + dx * r, y + dy * (r - arm));
+  }
   ctx.stroke();
 }
 
@@ -354,6 +508,10 @@ function drawShips() {
     if (!s.alive) continue;
     const x = X(s.pos[0]), y = Y(s.pos[1]), half = shipPx(s) / 2;
     if (s.team === view.team) {
+      if (s === me) {
+        ctx.strokeStyle = rgba(C.me, 0.65); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, Math.max(22, half + 9), 0, Math.PI * 2); ctx.stroke();
+      }
       drawShip(s, s === me ? C.me : C.ally);
       if (s !== me) label(s.name + (s.ctrl === 'human' ? '' : txt('map.ai')), C.ally, x, y, Math.max(14, half));
       continue;
@@ -367,7 +525,7 @@ function drawShips() {
     }
     // контакт потерян: «дышащая» зона вероятности вокруг последней позиции, ведомой по баллистике
     const age = S.t - t.seenT, ur = Math.min(80000, 0.5 * 15 * age * age), tx = X(t.pos[0]), ty = Y(t.pos[1]);
-    const R = Math.max(8, ur / cam.mpp), breath = 1 + 0.15 * Math.sin(clock.real * 2 * Math.PI / 3);
+    const R = Math.max(8, ur / cam.mpp), breath = reducedMotion() ? 1 : 1 + 0.15 * Math.sin(clock.real * 2 * Math.PI / 3);
     if (R > 10) {
       const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, R);
       g.addColorStop(0, rgba(C.foe, 0.18 * breath)); g.addColorStop(1, rgba(C.foe, 0));
@@ -376,7 +534,7 @@ function drawShips() {
     ctx.strokeStyle = C.foe; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.setLineDash([5, 5]);
     ctx.beginPath(); ctx.arc(tx, ty, R, 0, 7); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
-    ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tx, ty - 8); ctx.lineTo(tx + 8, ty); ctx.lineTo(tx, ty + 8); ctx.lineTo(tx - 8, ty); ctx.closePath(); ctx.stroke();
+    diamond(tx, ty, 8, C.foe);
     label((team ? s.name + ': ' : '') + txt('map.lastPos', { ago: age }), C.foe, tx, ty - 2);
     if (isTarget) targetMark(tx, ty);
   }

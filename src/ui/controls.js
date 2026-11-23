@@ -8,17 +8,21 @@ import { net, netSend } from '../net/multiplayer.js';
 import { $, el } from './dom.js';
 import { pointer, COARSE } from './pointer.js';
 import { say } from './toast.js';
+import { logOrder } from './order-log.js';
+import { draft } from '../maneuver.js';
 import { t } from '../i18n.js';
 
-const canIssue = () => run.started && !S.over && myShip().alive;
+export const canIssue = () => run.started && !S.over && myShip().alive;
 
 // приказ своему кораблю: локально или, у гостя сетевой игры, через хост
-function order(type, val) {
+export function order(type, val) {
   const me = myShip();
   if (type === 'spread') { me.spread = val; if (net.role === 'guest') netSend({ type: 'spread', val }, 1); return; }
+  if (type !== 'target') logOrder(type, S.t, net.role === 'guest' ? net.seq + 1 : 0, S);
   if (net.role !== 'guest') { issue(me.id, type, val); return; }
   if (type === 'throttle') me.issuedThrottle = val;
   if (type === 'heading') me.issuedHeading = val;
+  if (type === 'burn') { me.issuedHeading = val[0]; me.issuedThrottle = val[1]; }
   if (type === 'target') me.targetId = val;
   netSend({ type: 'order', seq: ++net.seq, o: type, val }, 1);
 }
@@ -78,7 +82,7 @@ export function setSpeed(v) {
 }
 
 // в сетевой игре пауза общая: её ставит или снимает любой из игроков, решает хост
-function togglePause() {
+export function togglePause() {
   if (!run.started || S.over) return;
   if (net.role === 'guest') netSend({ type: 'pause', on: !(net.pauseReason === 'me' || net.pauseReason === 'other') }, 1);
   else if (net.role === 'host') net.pauseBy = net.pauseBy ? '' : 'host';
@@ -94,6 +98,8 @@ function setAim(v) {
 function tapAt(x, y) {
   if (!canIssue()) return;
   const me = myShip(), w = screenToWorld(x, y), a = Math.atan2(w[1] - me.pos[1], w[0] - me.pos[0]);
+  // открыт план манёвра: касание задаёт направление манёвра, а не курс
+  if (draft.open) { draft.ang = a; return; }
   if (pointer.aim) { order('flak', a); setAim(false); return; }
   const e = contactAt(x, y);
   if (e && e.id !== me.targetId) { order('target', e.id); say(t('msg.target', { name: e.name })); return; }

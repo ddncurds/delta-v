@@ -10,6 +10,7 @@ import { say, hideToast } from './ui/toast.js';
 import { t } from './i18n.js';
 import { initHud, updateHud } from './ui/hud.js';
 import { initControls, setSpeed } from './ui/controls.js';
+import { initPlanner, updatePlanner } from './ui/planner.js';
 import { net, netTick, hostPauseReason, initMultiplayer, joinFromUrl, netSpeedLimit, autoSlowShips, queueSay, mpRender, rerenderStatus, rerenderRooms } from './net/multiplayer.js';
 import { guestStep } from './net/snapshot.js';
 import { beginBattle, checkResult, initSession, renderOverlay } from './session.js';
@@ -38,6 +39,7 @@ initLang(() => { renderOverlay(); mpRender(); rerenderStatus(); rerenderRooms();
 initScene(canvas);
 initHud();
 initControls(canvas);
+initPlanner();
 initMultiplayer({ beginBattle });
 initSession();
 newGame();
@@ -85,6 +87,7 @@ function frame() {
   easeZoom(dtReal);
   draw(dtReal);
   updateHud();
+  updatePlanner();
   requestAnimationFrame(frame);
 }
 

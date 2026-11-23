@@ -1,6 +1,6 @@
 // Детальные модели кораблей для крупного масштаба. Координаты в долях длины корпуса:
 // нос в +x (0,5), корма в −x, ось y — поперёк корпуса. Модели симметричны относительно оси x
-import { HULL } from './theme.js';
+import { HULL, LIGHT } from './theme.js';
 
 // у синих — корвет, у красных — фрегат
 export const shipLength = s => s.team === 0 ? 46 : 55;
@@ -20,9 +20,16 @@ function line(ctx, x0, y0, x1, y1, style, w, alpha = 1) {
 }
 function dot(ctx, x, y, r, style, alpha = 1) { ctx.globalAlpha = alpha * A; ctx.fillStyle = style; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.globalAlpha = A; }
 
-// объёмная заливка корпуса: верхний борт светлее
+// направление на солнце в осях модели: тот же LIGHT, что у планет, повёрнутый на курс корабля
+let LM = [0, -1];
+function lightIn(heading) {
+  const c = Math.cos(heading), s = Math.sin(heading), l = Math.hypot(LIGHT[0], LIGHT[1]);
+  return [(c * LIGHT[0] - s * LIGHT[1]) / l, (s * LIGHT[0] + c * LIGHT[1]) / l];
+}
+
+// объёмная заливка корпуса: борт к солнцу светлее, теневой — темнее
 function hullShade(ctx, w) {
-  const g = ctx.createLinearGradient(0, -w, 0, w);
+  const g = ctx.createLinearGradient(LM[0] * w, LM[1] * w, -LM[0] * w, -LM[1] * w);
   g.addColorStop(0, HULL.light); g.addColorStop(0.45, HULL.mid); g.addColorStop(1, HULL.dark);
   return g;
 }
@@ -154,7 +161,7 @@ function navLights(ctx, x, y, on) {
 export function drawShipModel(ctx, s, col, Lp, x, y, aim, alpha = 1) {
   const d = aim - s.heading;
   const o = { col, px: 1 / Lp, hot: Math.min(1, s.accG / 2), look: [Math.cos(d), -Math.sin(d)], blink: Math.floor(performance.now() / 700) % 2 === 0 };
-  A = alpha;
+  A = alpha; LM = lightIn(s.heading);
   ctx.save(); ctx.translate(x, y); ctx.rotate(-s.heading); ctx.scale(Lp, Lp); ctx.globalAlpha = A;
   (s.team === 0 ? drawRocinante : drawFrigate)(ctx, o);
   ctx.restore();
